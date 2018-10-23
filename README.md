@@ -5,6 +5,12 @@
 
 
 ## Data 
+* Nielsen data, retail scanner data (RMS)
+* weekly pricing, volume, store merchandising conditions 
+* 35,000 grocery, drug, mass-merchandiser, and other stores (grocery for us)
+* 2011 to 2013 
+
+
 
 
 ## Discovering SuperValu 
