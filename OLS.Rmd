@@ -103,11 +103,24 @@ dc_data <- full_11_12_13 %>%
 distinct(dc_data, retailer_code)
 ```
 
-Aggregate sales for all other stores in 842.
+Assign munfacturer for each brand.Aggregate sales for all other stores in 842.
 
 ```{r}
-dc_data %>% group_by(store_code_uc, retailer_code) %>% summarize(sales=sum(sales)) 
+dc_data <- dc_data %>%
+  mutate(manuf_name = substr(dc_data$brand_descr, 1, 3)) %>%
+  filter(manuf_name %in% c('SKI', "JIF", "SMU", "SIM", "SAN", "ADA", "CTL")) %>%
+  mutate(actual_manuf = if_else(manuf_name == 'CTL', 'CTL',
+                        if_else(manuf_name == 'SKI', 'UNI', 'SMU')))
+
+dc_data %>% group_by(store_code_uc, manuf_name) %>% summarize(sales=sum(sales)) 
+
+treat <- dc_data %>% filter(retailer_code==842) %>% group_by(store_code_uc, manuf_name) %>% summarize(sales=sum(sales))
+
+control <- dc_data %>% filter(retailer_code==32, 90,111) %>% group_by(store_code_uc, manuf_name) %>% summarize(sales=sum(sales))
+
 ```
+
+Find store codes in 842, for all other store codes, take average, combine other and 842 into data frame 
 
 
 
