@@ -2,6 +2,10 @@
 title: "OLS"
 output: word_document
 ---
+This initial analysis is performed on the peanut butter data and looks at individual treated store sales compared to
+an aggregate of the sales of the other stores in the market (DC Area). As of now this is only for the sales of 
+captain, validator, and private label between stores. We believe that the treated retailer is 842. 
+
 Install packages and load library.
 
 ```{r, results = 'hide'}
@@ -24,7 +28,8 @@ stores_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv")
 
 full_11 <- move_11 %>%
   inner_join(stores_11, by ="store_code_uc") %>% 
-  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"DC"))
+  filter(channel_code == "F", 
+         fips_state_descr %in% c("ND", "MN", "MO" ,"DC"))
 
 save(full_11, file = 'pb_full_11.RData')
 
@@ -39,7 +44,8 @@ stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv")
 
 full_12 <- move_12 %>%
   inner_join(stores_12, by ="store_code_uc") %>% 
-  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"DC"))
+  filter(channel_code == "F",
+         fips_state_descr %in% c("ND", "MN", "MO" ,"DC"))
 
 save(full_12, file = 'pb_full_12.RData')
 
@@ -55,7 +61,8 @@ stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv",
 
 full_13 <- move_13 %>%
   inner_join(stores_13, by = "store_code_uc") %>%
-  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO", "DC"))
+  filter(channel_code == "F",
+         fips_state_descr %in% c("ND", "MN", "MO", "DC"))
 
 save(full_13, file = 'pb_full_13.RData')
 
@@ -100,10 +107,10 @@ codes in DC.
 dc_data <- full_11_12_13 %>%
   filter(fips_state_descr == 'DC')
 
-distinct(dc_data, retailer_code)
+treated_stores <- dc_data %>% filter(retailer_code==842) %>% distinct(store_code_uc)
 ```
 
-Assign munfacturer for each brand.Aggregate sales for all other stores in 842.
+Assign munfacturer for each brand. Aggregate sales for all other stores not in 842. Divide all sales by average sales over entire pre and post period. 
 
 ```{r}
 dc_data <- dc_data %>%
@@ -112,15 +119,38 @@ dc_data <- dc_data %>%
   mutate(actual_manuf = if_else(manuf_name == 'CTL', 'CTL',
                         if_else(manuf_name == 'SKI', 'UNI', 'SMU')))
 
-dc_data %>% group_by(store_code_uc, manuf_name) %>% summarize(sales=sum(sales)) 
+ag_dc <- dc_data %>% group_by(store_code_uc, manuf_name, week_end) %>% summarize(sales=sum(sales)) 
 
-treat <- dc_data %>% filter(retailer_code==842) %>% group_by(store_code_uc, manuf_name) %>% summarize(sales=sum(sales))
+treat <- ag_dc %>% filter(store_code_uc==treated_stores) %>% mutate(scaled_sales=sales/mean(sales))
 
-control <- dc_data %>% filter(retailer_code==32, 90,111) %>% group_by(store_code_uc, manuf_name) %>% summarize(sales=sum(sales))
+control <- ag_dc %>% filter(store_code_uc!=treated_stores) %>% group_by(manuf_name, week_end) %>%
+  summarize(sales=sum(sales)) %>% mutate(scaled_sales=sales/mean(sales), store_code_uc=00000)
+
+ols_data <- treat %>% bind_rows(control) %>% mutate(treated=if_else(store_code_uc==treated_stores, 1, 0),
+                                                    post=if_else(week_end > "2012-07-16", 1, 0))
 
 ```
 
-Find store codes in 842, for all other store codes, take average, combine other and 842 into data frame 
+Run OLS regression. Plot graph showing sales over time. 
+
+```{r fig.height=7, fig.width=6}
+
+ols_data %>% lm(scaled_sales~treated + post + I(treated*post), data=.) %>% summary()
+
+pre_cc <- ols_data %>% 
+filter(week_end <= as.Date("2012-07-16")) 
+
+post_cc <- ols_data %>% 
+filter(week_end > as.Date("2012-07-16")) 
+
+ggplot(ols_data, aes(week_end, scaled_sales, col = factor(store_code_uc))) + geom_line() + 
+  geom_smooth(aes(week_end, scaled_sales), data = pre_cc, method = 'lm', se = FALSE) + 
+  geom_smooth(aes(week_end, scaled_sales), data = post_cc, method = 'lm', se = FALSE) + 
+  geom_vline(xintercept = as.numeric(as.Date("2012-07-16"))) + 
+ggtitle("Scaled Sales for treated store and aggregate") + theme(legend.position="bottom") 
+
+```
+
 
 
 
