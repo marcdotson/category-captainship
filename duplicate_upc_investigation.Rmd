@@ -1,0 +1,80 @@
+---
+title: "Duplicate UPC Investigation"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load libraries.
+```{r}
+library(tidyverse)
+```
+
+Load in products file.
+```{r}
+products <- read_tsv('products.tsv', quote = '')
+```
+
+Create a dataframe containing duplicated UPC codes.
+```{r}
+duplicates <- products %>% 
+  group_by(upc) %>% 
+  filter(n() > 1) %>%
+  arrange(upc)
+
+duplicates %>%
+  distinct(upc) %>%
+  nrow()
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
