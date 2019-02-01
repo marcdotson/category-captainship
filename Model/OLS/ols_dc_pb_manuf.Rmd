@@ -1,0 +1,206 @@
+---
+title: "OLS (DC) peanut butter, by manufacturer"
+output: word_document
+---
+This initial analysis is performed on the peanut butter data and looks at individual treated store sales compared to
+an aggregate of the sales of the other stores in the market (DC Area). As of now this is only for the sales of 
+captain, validator, and private label between stores. We believe that the treated retailer is 842. 
+
+Install packages and load library.
+
+```{r, results = 'hide'}
+library(tidyverse)
+library(lubridate)
+```
+
+Unzip the 'peanutbutter.tgz' file. Read in 2011 movement and store files, merge them based
+on the store code, and filter for 'F' (food stores) and states North Dakota, Minnesota,
+Missouri, and D.C.
+
+```{r, results = 'hide'}
+untar("peanutbutter.tgz", list = TRUE)
+
+untar("peanutbutter.tgz")
+
+move_11 <- read_tsv("nielsen_extracts/RMS/2011/Movement_Files/0506_2011/1421_2011.tsv")
+
+stores_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv")
+
+full_11 <- move_11 %>%
+  inner_join(stores_11, by ="store_code_uc") %>% 
+  filter(channel_code == "F", 
+         fips_state_descr %in% c("ND", "MN", "MO" ,"DC"))
+
+save(full_11, file = 'pb_full_11.RData')
+
+rm(move_11, stores_11, full_11)
+```
+
+Perform the previous step for 2012 and 2013.
+
+```{r, results = 'hide'}
+move_12 <- read_tsv("nielsen_extracts/RMS/2012/Movement_Files/0506_2012/1421_2012.tsv")
+stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv")
+
+full_12 <- move_12 %>%
+  inner_join(stores_12, by ="store_code_uc") %>% 
+  filter(channel_code == "F",
+         fips_state_descr %in% c("ND", "MN", "MO" ,"DC"))
+
+save(full_12, file = 'pb_full_12.RData')
+
+rm(move_12, stores_12, full_12)
+
+move_13 <- read_tsv("nielsen_extracts/RMS/2013/Movement_Files/0506_2013/1421_2013.tsv")
+
+stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", 
+                      col_types = list(col_double(), col_double(),
+                      col_double(), col_double(), col_character(),
+                      col_character(), col_double(), col_character(), 
+                      col_double(), col_character(), col_double(), col_character()))
+
+full_13 <- move_13 %>%
+  inner_join(stores_13, by = "store_code_uc") %>%
+  filter(channel_code == "F",
+         fips_state_descr %in% c("ND", "MN", "MO", "DC"))
+
+save(full_13, file = 'pb_full_13.RData')
+
+rm(move_13, stores_13)
+```
+
+Bind full_11,12,13 into one tbl, 'full_11_12_13'. Overwrite the variable week_end to be in
+year-month-date format. Create sales variable, which is the number of units sold multiplied
+by the price.
+
+```{r, results = 'hide'}
+load('pb_full_11.RData')
+load('pb_full_12.RData')
+
+full_11_12_13 <- full_11 %>%
+  bind_rows(full_12) %>%
+  bind_rows(full_13) %>%
+  mutate(week_end = ymd(week_end), sales = units * price)
+
+rm(full_11, full_12, full_13)
+```
+
+Read in products master file.
+
+```{r, results = 'hide'}
+products <- read_tsv('products.tsv', quote = "")
+```
+
+Merge products file and full_11_12_13.
+
+```{r, results = 'hide'}
+full_11_12_13 <- full_11_12_13 %>%
+  left_join(products, by = 'upc')
+
+rm(products)
+```
+
+Filter the full dataset for data pertaining to the retailers in DC. Display the retailer
+codes in DC.
+
+```{r}
+dc_data <- full_11_12_13 %>%
+  filter(fips_state_descr == 'DC')
+
+treated_stores <- dc_data %>% filter(retailer_code==842) %>% distinct(store_code_uc)
+```
+
+Assign manfacturer for each brand. Aggregate sales by manufacturer for all other stores not in 842. Divide all sales by average sales over entire pre and post period. Create treatment and control variables for the captain, validator, and private label. 
+
+```{r}
+dc_data <- dc_data %>%
+  mutate(manuf_name = substr(dc_data$brand_descr, 1, 3)) %>%
+  filter(manuf_name %in% c('SKI', "JIF", "SMU", "SIM", "SAN", "ADA", "CTL")) %>%
+  mutate(actual_manuf = if_else(manuf_name == 'CTL', 'CTL',
+                        if_else(manuf_name == 'SKI', 'UNI', 'SMU')))
+
+ag_dc <- dc_data %>% group_by(store_code_uc, actual_manuf, week_end) %>% summarize(sales=sum(sales)) 
+
+treat_uni <- ag_dc %>% filter(actual_manuf=="UNI") %>% filter(store_code_uc==treated_stores) %>% mutate(scaled_sales=sales/mean(sales))
+
+treat_ctl <- ag_dc %>% filter(actual_manuf=="CTL") %>% filter(store_code_uc==treated_stores) %>% mutate(scaled_sales=sales/mean(sales))
+
+treat_smu <- ag_dc %>% filter(actual_manuf=="SMU") %>% filter(store_code_uc==treated_stores) %>% mutate(scaled_sales=sales/mean(sales))
+
+control_uni <- ag_dc %>% filter(store_code_uc!=treated_stores) %>% filter(actual_manuf=="UNI") %>% group_by(week_end) %>%
+  summarize(sales=sum(sales)) %>% mutate(scaled_sales=sales/mean(sales), store_code_uc=00000)
+
+control_ctl <- ag_dc %>% filter(store_code_uc!=treated_stores) %>% filter(actual_manuf=="CTL") %>% group_by(week_end) %>%
+  summarize(sales=sum(sales)) %>% mutate(scaled_sales=sales/mean(sales), store_code_uc=00000)
+
+control_smu <- ag_dc %>% filter(store_code_uc!=treated_stores) %>% filter(actual_manuf=="SMU") %>% group_by(week_end) %>%
+  summarize(sales=sum(sales)) %>% mutate(scaled_sales=sales/mean(sales), store_code_uc=00000)
+
+ols_uni <- treat_uni %>% bind_rows(control_uni) %>% mutate(treated=if_else(store_code_uc==treated_stores, 1, 0),
+                                                    post=if_else(week_end > "2012-07-16", 1, 0))
+
+ols_ctl <- treat_ctl %>% bind_rows(control_ctl) %>% mutate(treated=if_else(store_code_uc==treated_stores, 1, 0),
+                                                    post=if_else(week_end > "2012-07-16", 1, 0))
+
+ols_smu <- treat_smu %>% bind_rows(control_smu) %>% mutate(treated=if_else(store_code_uc==treated_stores, 1, 0),
+                                                    post=if_else(week_end > "2012-07-16", 1, 0))
+
+```
+
+Run OLS regression for captain, validator, and private label. Plot graphs showing sales over time. 
+
+```{r fig.height=7, fig.width=6}
+
+ols_uni %>% lm(scaled_sales~treated + post + I(treated*post), data=.) %>% summary()
+
+ols_ctl %>% lm(scaled_sales~treated + post + I(treated*post), data=.) %>% summary()
+
+ols_smu %>% lm(scaled_sales~treated + post + I(treated*post), data=.) %>% summary()
+
+pre_cc_uni <- ols_uni %>% 
+filter(week_end <= as.Date("2012-07-16")) 
+
+post_cc_uni <- ols_uni %>% 
+filter(week_end > as.Date("2012-07-16")) 
+
+ggplot(ols_uni, aes(week_end, scaled_sales, col = factor(store_code_uc))) + geom_line() + 
+  geom_smooth(aes(week_end, scaled_sales), data = pre_cc_uni, method = 'lm', se = FALSE) + 
+  geom_smooth(aes(week_end, scaled_sales), data = post_cc_uni, method = 'lm', se = FALSE) + 
+  geom_vline(xintercept = as.numeric(as.Date("2012-07-16"))) + 
+ggtitle("Scaled Sales for Captain (Unilever) and aggregate control") + theme(legend.position="bottom")
+
+pre_cc_ctl <- ols_ctl %>% 
+filter(week_end <= as.Date("2012-07-16")) 
+
+post_cc_ctl <- ols_ctl %>% 
+filter(week_end > as.Date("2012-07-16")) 
+
+ggplot(ols_ctl, aes(week_end, scaled_sales, col = factor(store_code_uc))) + geom_line() + 
+  geom_smooth(aes(week_end, scaled_sales), data = pre_cc_ctl, method = 'lm', se = FALSE) + 
+  geom_smooth(aes(week_end, scaled_sales), data = post_cc_ctl, method = 'lm', se = FALSE) + 
+  geom_vline(xintercept = as.numeric(as.Date("2012-07-16"))) + 
+ggtitle("Scaled Sales for Private Label and aggregate control") + theme(legend.position="bottom")
+
+pre_cc_smu <- ols_smu %>% 
+filter(week_end <= as.Date("2012-07-16")) 
+
+post_cc_smu <- ols_smu %>% 
+filter(week_end > as.Date("2012-07-16")) 
+
+ggplot(ols_smu, aes(week_end, scaled_sales, col = factor(store_code_uc))) + geom_line() + 
+  geom_smooth(aes(week_end, scaled_sales), data = pre_cc_smu, method = 'lm', se = FALSE) + 
+  geom_smooth(aes(week_end, scaled_sales), data = post_cc_smu, method = 'lm', se = FALSE) + 
+  geom_vline(xintercept = as.numeric(as.Date("2012-07-16"))) + 
+ggtitle("Scaled Sales for Validator (Smuckers) and aggregate control") + theme(legend.position="bottom") 
+
+```
+
+
+
+
+
+
+
+
+
+
