@@ -112,18 +112,6 @@ control_stores <- dc_data %>% filter(retailer_code!=842) %>% distinct(store_code
 
 ```
 
-Store 1782306 is a serious problem, only 40 dates. Store codes above that are fine. Store codes below have not been checked. 
-
-```{r}
-week_vec <- unique(dc_data$week_end)
-
-single_store <- dc_data %>% filter(store_code_uc==1782306)
-
-single_store_vec <- unique(single_store$week_end)
-
-```
-
-
 Assign munfacturer for each brand. Organize data by stores and date, add sales across UPCs.  
 
 ```{r}
@@ -132,7 +120,7 @@ dc_data <- dc_data %>%
   filter(manuf_name %in% c('SKI', "JIF", "SMU", "SIM", "SAN", "ADA", "CTL")) %>%
   mutate(actual_manuf = if_else(manuf_name == 'CTL', 'CTL',
                         if_else(manuf_name == 'SKI', 'UNI', 'SMU'))) %>%
-  mutate(store_code_uc=as.numeric(store_code_uc), week_end=as.numeric(week_end))
+  mutate(store_code_uc=as.numeric(store_code_uc))
 
 dc_data <- dc_data %>% group_by(store_code_uc, week_end) %>% summarize(sales=sum(sales)) %>%
   arrange(store_code_uc, week_end) 
@@ -141,7 +129,25 @@ dc_data <- as.data.frame(dc_data)
 
 ```
 
-use data prep to create weights for synthetic control.
+Check store codes to see how many weeks they have. Stores with less than 153 observations need to have zero sales put in. 
+
+```{r}
+
+week_frame <- distinct(dc_data, week_end)
+
+codes <- unique(dc_data$store_code_uc)
+
+for (i in seq_along(codes)) 
+  {single_store <- dc_data %>% filter(store_code_uc==codes[i])
+  single_store_vec <- unique(single_store$week_end)
+  missing_weeks <- week_frame %>% filter(!week_end %in% single_store_vec) %>% 
+    mutate(sales=0, store_code_uc=codes[i])
+  dc_data <- dc_data %>% bind_rows(missing_weeks) %>% arrange(week_end)}
+
+dc_data <- dc_data %>% arrange(store_code_uc, week_end) %>% mutate(week_end=as.numeric(week_end))
+```
+
+Use data prep to create weights for synthetic control.
 
 ```{r}
 
@@ -152,10 +158,8 @@ dataprep_out <- dataprep(foo=dc_data, predictors="sales", dependent="sales", uni
                          time.plot=c(2011-01-01:2013-12-28))
 
 
-
+#add column of week end next to numeric weekend to find value 1986
 ```
-
-
 
 
 
