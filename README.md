@@ -26,7 +26,10 @@ Training](https://github.com/marcdotson/ra-training).
     Implications of Category Captainship
   - extend and apply across multiple chains, markets, locations and
     categories to get better understanding of overall effects
-  - Use hierarchical diff in diff model
+  - Models:
+      * Hierarchical Difference in Differences
+      * Synthetic Control
+      * Synthetic Difference in Differences
 
 ### Data
 
