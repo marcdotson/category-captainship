@@ -6,6 +6,7 @@ output: github_document
 Install packages and load library.
 
 ```{r, results = 'hide'}
+#install.packages('tidyverse')
 #install.packages("Synth")
 library(tidyverse)
 library(lubridate)
@@ -17,8 +18,6 @@ on the store code, and filter for 'F' (food stores) and states North Dakota, Min
 Missouri, and D.C.
 
 ```{r, results = 'hide'}
-untar("peanutbutter.tgz", list = TRUE)
-
 untar("peanutbutter.tgz")
 
 move_11 <- read_tsv("nielsen_extracts/RMS/2011/Movement_Files/0506_2011/1421_2011.tsv")
@@ -109,7 +108,6 @@ dc_data <- full_11_12_13 %>%
 treated_stores <- dc_data %>% filter(retailer_code==842) %>% distinct(store_code_uc)
 
 control_stores <- dc_data %>% filter(retailer_code!=842) %>% distinct(store_code_uc)
-
 ```
 
 Assign munfacturer for each brand. Organize data by stores and date, add sales across UPCs.  
@@ -126,48 +124,68 @@ dc_data <- dc_data %>% group_by(store_code_uc, week_end) %>% summarize(sales=sum
   arrange(store_code_uc, week_end) 
 
 dc_data <- as.data.frame(dc_data)
-
 ```
 
-Check store codes to see how many weeks they have. Stores with less than 153 observations need to have zero sales put in. 
+Check store codes to see how many weeks they have. Stores with less than 157 weeks of observations are dropped
+from the data. Then we arrange by 'store_code_uc' and 'week_end', then create a 'n_week_end' variable to represent
+the date numerically.
 
 ```{r}
-
-week_frame <- distinct(dc_data, week_end)
+weeks <- unique(dc_data$week_end)
 
 codes <- unique(dc_data$store_code_uc)
 
-for (i in seq_along(codes)) 
-  {single_store <- dc_data %>% filter(store_code_uc==codes[i])
-  single_store_vec <- unique(single_store$week_end)
-  missing_weeks <- week_frame %>% filter(!week_end %in% single_store_vec) %>% 
-    mutate(sales=0, store_code_uc=codes[i])
-  dc_data <- dc_data %>% bind_rows(missing_weeks) %>% arrange(week_end)}
+drops <- c()
 
-dc_data <- dc_data %>% arrange(store_code_uc, week_end) %>% mutate(week_end=as.numeric(week_end))
+for (i in seq_along(codes)) {
+  
+  single_store <- dc_data %>% filter(store_code_uc==codes[i])
+  
+  single_store_vec <- unique(single_store$week_end)
+  
+  if (length(single_store_vec) < length(weeks)) {
+    
+    drops <- c(drops, codes[i])
+    
+  }
+
+}
+
+dc_data <- dc_data %>% filter(!store_code_uc %in% drops) %>% arrange(store_code_uc, week_end) %>%
+  mutate(n_week_end=as.numeric(week_end))
+
+control_stores <- control_stores %>% filter(!store_code_uc %in% drops)
 ```
 
 Use data prep to create weights for synthetic control.
 
 ```{r}
-
 dataprep_out <- dataprep(foo=dc_data, predictors="sales", dependent="sales", unit.variable="store_code_uc",
-                         time.variable="week_end", treatment.identifier=5133302,
+                         time.variable="n_week_end", treatment.identifier=5133302,
                          controls.identifier=control_stores$store_code_uc,
-                         time.predictors.prior=c(2011-01-01:2012-07-16), time.optimize.ssr=c(2011-01-01:2012-07-16),
-                         time.plot=c(2011-01-01:2013-12-28))
+                         time.predictors.prior=seq(14975, 15535, by = 7), time.optimize.ssr=seq(14975, 15535, by = 7),
+                         time.plot=seq(14975, 16067, by = 7))
 
+synth_out <- synth(dataprep_out)
 
-#add column of week end next to numeric weekend to find value 1986
+path.plot(dataprep.res = dataprep_out, synth.res = synth_out, Xlab = c('Weeks'), Ylab = c('Sales'), tr.intake = 15535,
+          Main = 'Synthetic Control and Treated Store Sales')
 ```
 
+```{r}
+gaps.plot(dataprep.res = dataprep_out, synth.res = synth_out, Ylab = 'Difference', Xlab = 'Weeks', tr.intake = 15535,
+          Main = 'Difference Between Treated and Synthetic Sales (Treated - Synthetic)')
+```
 
+```{r}
+synth_tables <- synth.tab(synth.res = synth_out, dataprep.res = dataprep_out)
+synth_tables$tab.w
+```
 
+```{r}
+synth_tables$tab.pred
+```
 
-
-
-
-
-
-
-
+```{r}
+dataprep_out$Y1plot
+```
