@@ -13,6 +13,10 @@ captain and not as detrimental to the other brands as might be expected.
 But does this phenomenon generalize across many retailers? What
 characteristics attenuate the success of the practice across retailers?
 
+For general details on GitHub usage, project organization, and project
+workflow, see [Research Assistant
+Training](https://github.com/marcdotson/ra-training).
+
 ## Project Organization
 
 ### Project Description
@@ -22,10 +26,7 @@ characteristics attenuate the success of the practice across retailers?
     Implications of Category Captainship
   - extend and apply across multiple chains, markets, locations and
     categories to get better understanding of overall effects
-  - Models:
-      * Hierarchical Difference in Differences
-      * Synthetic Control
-      * Synthetic Difference in Differences
+  - Use hierarchical diff in diff model
 
 ### Data
 
@@ -115,9 +116,4 @@ another method of identification.
 
 ### Modeling
 
-  - We began by comparing the treated store (the treated retailer only has 1 store present in DC in our data) to the other stores in DC.
-    There weren't any suitable control units since the trends of the treated store and control stores did not match.
-  - We moved on to begin working with the 'Synth' package in R, which can be utilized to construct a synthetic control unit that matches
-    the pre-treatment trend of the treated unit. This method was established by Abadie et al and has gained popularity in the marketing
-    literature and variations on their method have been established......
-  - We will also investigate sythetic difference in differences....
+  - Currently in progress
