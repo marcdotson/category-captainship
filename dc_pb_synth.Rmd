@@ -1,6 +1,6 @@
 ---
 title: "DC Peanut butter synthetic control"
-output: github_document
+output: word_document
 ---
 
 Install packages and load library.
@@ -159,20 +159,20 @@ control_stores <- control_stores %>% filter(!store_code_uc %in% drops)
 
 Use data prep to create weights for synthetic control.
 
-```{r}
+```{r, fig.width=8, fig.height=5}
 dataprep_out <- dataprep(foo=dc_data, predictors="sales", dependent="sales", unit.variable="store_code_uc",
                          time.variable="n_week_end", treatment.identifier=5133302,
                          controls.identifier=control_stores$store_code_uc,
                          time.predictors.prior=seq(14975, 15535, by = 7), time.optimize.ssr=seq(14975, 15535, by = 7),
                          time.plot=seq(14975, 16067, by = 7))
 
-synth_out <- synth(dataprep_out)
-
+synth_out <-synth(dataprep_out) 
+  
 path.plot(dataprep.res = dataprep_out, synth.res = synth_out, Xlab = c('Weeks'), Ylab = c('Sales'), tr.intake = 15535,
           Main = 'Synthetic Control and Treated Store Sales')
 ```
 
-```{r}
+```{r, fig.width=8, fig.height=7}
 gaps.plot(dataprep.res = dataprep_out, synth.res = synth_out, Ylab = 'Difference', Xlab = 'Weeks', tr.intake = 15535,
           Main = 'Difference Between Treated and Synthetic Sales (Treated - Synthetic)')
 ```
