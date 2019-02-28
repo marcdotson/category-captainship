@@ -1,11 +1,11 @@
 ---
-title: "DC Peanut butter synthetic control"
-output: word_document
+title: "DC Peanut Butter Synthetic Control"
+output: github_document
 ---
 
 Install packages and load library.
 
-```{r, results = 'hide'}
+```{r, results = 'hide', message = FALSE}
 #install.packages('tidyverse')
 #install.packages("Synth")
 library(tidyverse)
@@ -166,9 +166,11 @@ dataprep_out <- dataprep(foo=dc_data, predictors="sales", dependent="sales", uni
                          time.predictors.prior=seq(14975, 15535, by = 7), time.optimize.ssr=seq(14975, 15535, by = 7),
                          time.plot=seq(14975, 16067, by = 7))
 
-synth_out <-synth(dataprep_out) 
-  
-path.plot(dataprep.res = dataprep_out, synth.res = synth_out, Xlab = c('Weeks'), Ylab = c('Sales'), tr.intake = 15535,
+synth_out <-synth(dataprep_out)
+```
+
+```{r fig.width = 8, fig.height = 7}
+path.plot(dataprep.res = dataprep_out, synth.res = synth_out, Xlab = c('Time'), Ylab = c('Sales'), tr.intake = 15535,
           Main = 'Synthetic Control and Treated Store Sales')
 ```
 
@@ -187,5 +189,30 @@ synth_tables$tab.pred
 ```
 
 ```{r}
-dataprep_out$Y1plot
+controls <- dataprep_out$Z0
+weights <- synth_tables$tab.w$w.weights
+colnames(controls) <- NULL
+rownames(controls) <- NULL
+w_ctrl <- as.vector(weights %*% t(controls), mode = 'numeric')
+treat <- as.vector(dataprep_out$Z1)
+weighted_data <- tibble(control = w_ctrl,
+                           treated = treat,
+                           time = 1:length(w_ctrl))
 ```
+
+```{r}
+weighted_data <- weighted_data %>%
+  gather(key = 'Store', value = 'Sales', -time)
+```
+
+```{r}
+weighted_data %>%
+  ggplot(aes(x = time, y = Sales, col = Store)) +
+  geom_line() +
+  labs(x = 'Time',
+       y = 'Total Sales',
+       title = 'Sales for Treated Store and Synthetic Control Store')
+
+# this is only graphing the pre-treatment period sales
+```
+

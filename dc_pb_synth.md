@@ -1,4 +1,4 @@
-DC Peanut butter synthetic control
+DC Peanut Butter Synthetic Control
 ================
 
 Install packages and load library.
@@ -7,38 +7,9 @@ Install packages and load library.
 #install.packages('tidyverse')
 #install.packages("Synth")
 library(tidyverse)
-```
-
-    ## -- Attaching packages -------------------------------------------------------------------------------- tidyverse 1.2.1 --
-
-    ## v ggplot2 3.1.0       v purrr   0.3.0  
-    ## v tibble  2.0.1       v dplyr   0.8.0.1
-    ## v tidyr   0.8.2       v stringr 1.4.0  
-    ## v readr   1.3.1       v forcats 0.4.0
-
-    ## -- Conflicts ----------------------------------------------------------------------------------- tidyverse_conflicts() --
-    ## x dplyr::filter() masks stats::filter()
-    ## x dplyr::lag()    masks stats::lag()
-
-``` r
 library(lubridate)
-```
-
-    ## 
-    ## Attaching package: 'lubridate'
-
-    ## The following object is masked from 'package:base':
-    ## 
-    ##     date
-
-``` r
 library(Synth)
 ```
-
-    ## ##
-    ## ## Synth Package: Implements Synthetic Control Methods.
-
-    ## ## See http://www.mit.edu/~jhainm/software.htm for additional information.
 
 Unzip the 'peanutbutter.tgz' file. Read in 2011 movement and store files, merge them based on the store code, and filter for 'F' (food stores) and states North Dakota, Minnesota, Missouri, and D.C.
 
@@ -286,7 +257,7 @@ dataprep_out <- dataprep(foo=dc_data, predictors="sales", dependent="sales", uni
                          time.predictors.prior=seq(14975, 15535, by = 7), time.optimize.ssr=seq(14975, 15535, by = 7),
                          time.plot=seq(14975, 16067, by = 7))
 
-synth_out <- synth(dataprep_out)
+synth_out <-synth(dataprep_out)
 ```
 
     ## 
@@ -311,18 +282,18 @@ synth_out <- synth(dataprep_out)
     ##  0.03670724 0.03469845 0.02984143 0.01159974 0.4612645 0.03238041 0.03246352 0.03670635 0.03585614 0.03173574 0.036639 0.02044926 0.02551085 0.03672516 0.03472481 0.03640007 0.0367203 0.02957704
 
 ``` r
-path.plot(dataprep.res = dataprep_out, synth.res = synth_out, Xlab = c('Weeks'), Ylab = c('Sales'), tr.intake = 15535,
+path.plot(dataprep.res = dataprep_out, synth.res = synth_out, Xlab = c('Time'), Ylab = c('Sales'), tr.intake = 15535,
           Main = 'Synthetic Control and Treated Store Sales')
 ```
 
-![](dc_pb_synth_files/figure-markdown_github/unnamed-chunk-10-1.png)
+![](dc_pb_synth_files/figure-markdown_github/unnamed-chunk-11-1.png)
 
 ``` r
 gaps.plot(dataprep.res = dataprep_out, synth.res = synth_out, Ylab = 'Difference', Xlab = 'Weeks', tr.intake = 15535,
           Main = 'Difference Between Treated and Synthetic Sales (Treated - Synthetic)')
 ```
 
-![](dc_pb_synth_files/figure-markdown_github/unnamed-chunk-11-1.png)
+![](dc_pb_synth_files/figure-markdown_github/unnamed-chunk-12-1.png)
 
 ``` r
 synth_tables <- synth.tab(synth.res = synth_out, dataprep.res = dataprep_out)
@@ -357,164 +328,33 @@ synth_tables$tab.pred
     ## sales 897.081   897.082     1243.61
 
 ``` r
-dataprep_out$Y1plot
+controls <- dataprep_out$Z0
+weights <- synth_tables$tab.w$w.weights
+colnames(controls) <- NULL
+rownames(controls) <- NULL
+w_ctrl <- as.vector(weights %*% t(controls), mode = 'numeric')
+treat <- as.vector(dataprep_out$Z1)
+weighted_data <- tibble(control = w_ctrl,
+                           treated = treat,
+                           time = 1:length(w_ctrl))
 ```
 
-    ##       5133302
-    ## 14975  588.81
-    ## 14982  926.88
-    ## 14989  965.48
-    ## 14996  634.20
-    ## 15003  764.45
-    ## 15010  812.04
-    ## 15017  963.42
-    ## 15024  574.88
-    ## 15031  749.78
-    ## 15038  706.55
-    ## 15045  871.62
-    ## 15052  577.97
-    ## 15059  789.88
-    ## 15066  750.94
-    ## 15073 1057.05
-    ## 15080  847.44
-    ## 15087  741.03
-    ## 15094  490.78
-    ## 15101  883.52
-    ## 15108  837.77
-    ## 15115  699.38
-    ## 15122  583.09
-    ## 15129  701.77
-    ## 15136 1013.36
-    ## 15143  627.44
-    ## 15150  611.76
-    ## 15157  747.25
-    ## 15164  931.21
-    ## 15171  825.22
-    ## 15178  576.71
-    ## 15185  725.09
-    ## 15192 1156.60
-    ## 15199 1059.07
-    ## 15206  664.44
-    ## 15213 1239.72
-    ## 15220  643.42
-    ## 15227  999.53
-    ## 15234  746.53
-    ## 15241  742.68
-    ## 15248  712.40
-    ## 15255 1139.40
-    ## 15262 1026.55
-    ## 15269  949.28
-    ## 15276  802.57
-    ## 15283  928.94
-    ## 15290 1086.30
-    ## 15297  894.17
-    ## 15304  739.78
-    ## 15311  858.59
-    ## 15318 1085.07
-    ## 15325  906.18
-    ## 15332  829.53
-    ## 15339  730.09
-    ## 15346 1266.87
-    ## 15353 1225.76
-    ## 15360  868.84
-    ## 15367  773.61
-    ## 15374  997.19
-    ## 15381 1232.58
-    ## 15388  849.53
-    ## 15395  826.70
-    ## 15402  852.78
-    ## 15409 1271.72
-    ## 15416  950.29
-    ## 15423  802.10
-    ## 15430  845.58
-    ## 15437 1255.18
-    ## 15444 1045.30
-    ## 15451  908.89
-    ## 15458  889.15
-    ## 15465 1036.04
-    ## 15472 1126.02
-    ## 15479  806.70
-    ## 15486 1019.68
-    ## 15493  924.55
-    ## 15500 1515.34
-    ## 15507 1080.81
-    ## 15514  968.14
-    ## 15521 1175.11
-    ## 15528 1380.98
-    ## 15535 1250.53
-    ## 15542  921.91
-    ## 15549  983.57
-    ## 15556 1280.75
-    ## 15563 1622.91
-    ## 15570 1149.09
-    ## 15577  966.79
-    ## 15584  993.55
-    ## 15591 1517.50
-    ## 15598 1191.88
-    ## 15605 1043.02
-    ## 15612 1073.78
-    ## 15619 1122.03
-    ## 15626 1195.28
-    ## 15633  904.05
-    ## 15640 1025.22
-    ## 15647 1068.54
-    ## 15654 1494.99
-    ## 15661  833.50
-    ## 15668  748.89
-    ## 15675  862.98
-    ## 15682 1302.23
-    ## 15689 1182.36
-    ## 15696  900.37
-    ## 15703  830.16
-    ## 15710 1062.34
-    ## 15717 1217.09
-    ## 15724 1219.56
-    ## 15731  959.24
-    ## 15738  865.89
-    ## 15745 1208.80
-    ## 15752 1000.97
-    ## 15759  938.39
-    ## 15766  923.34
-    ## 15773 1656.75
-    ## 15780  929.22
-    ## 15787  864.95
-    ## 15794  906.92
-    ## 15801 1238.92
-    ## 15808 1205.70
-    ## 15815 1111.07
-    ## 15822  770.42
-    ## 15829  986.41
-    ## 15836 1236.96
-    ## 15843  845.89
-    ## 15850  871.14
-    ## 15857  736.59
-    ## 15864 1329.18
-    ## 15871 1021.59
-    ## 15878  911.44
-    ## 15885  830.38
-    ## 15892 1153.34
-    ## 15899 1153.55
-    ## 15906  919.70
-    ## 15913  991.71
-    ## 15920 1049.71
-    ## 15927 1426.76
-    ## 15934 1131.07
-    ## 15941  913.37
-    ## 15948  987.69
-    ## 15955 1298.19
-    ## 15962 1156.15
-    ## 15969  950.33
-    ## 15976  884.77
-    ## 15983 1184.54
-    ## 15990 1496.15
-    ## 15997  946.07
-    ## 16004  915.06
-    ## 16011  912.30
-    ## 16018 1351.48
-    ## 16025  872.08
-    ## 16032  775.60
-    ## 16039  731.96
-    ## 16046 1067.16
-    ## 16053 1193.10
-    ## 16060  691.90
-    ## 16067  615.59
+``` r
+weighted_data <- weighted_data %>%
+  gather(key = 'Store', value = 'Sales', -time)
+```
+
+``` r
+weighted_data %>%
+  ggplot(aes(x = time, y = Sales, col = Store)) +
+  geom_line() +
+  labs(x = 'Time',
+       y = 'Total Sales',
+       title = 'Sales for Treated Store and Synthetic Control Store')
+```
+
+![](dc_pb_synth_files/figure-markdown_github/unnamed-chunk-17-1.png)
+
+``` r
+# this is only graphing the pre-treatment period sales
+```
