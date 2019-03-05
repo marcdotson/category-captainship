@@ -169,11 +169,13 @@ dataprep_out <- dataprep(foo=dc_data, predictors="sales", dependent="sales", uni
 synth_out <-synth(dataprep_out)
 ```
 
+Plot the synthetic control against the treated store over time. 
 ```{r fig.width = 8, fig.height = 7}
 path.plot(dataprep.res = dataprep_out, synth.res = synth_out, Xlab = c('Time'), Ylab = c('Sales'), tr.intake = 15535,
           Main = 'Synthetic Control and Treated Store Sales')
 ```
 
+Plot the difference between the treated and synthetic control sales over time. 
 ```{r, fig.width=8, fig.height=7}
 gaps.plot(dataprep.res = dataprep_out, synth.res = synth_out, Ylab = 'Difference', Xlab = 'Weeks', tr.intake = 15535,
           Main = 'Difference Between Treated and Synthetic Sales (Treated - Synthetic)')
@@ -188,6 +190,7 @@ synth_tables$tab.w
 synth_tables$tab.pred
 ```
 
+Create a vector of control sales and weights determined by the data prep. Creat w_ctrl, which is a vector of the weighted control sales. Create a vector of treated sales. Create a tibble with the treated sales and weighted control sales for the pre period. 
 ```{r}
 controls <- dataprep_out$Z0
 weights <- synth_tables$tab.w$w.weights
@@ -205,14 +208,66 @@ weighted_data <- weighted_data %>%
   gather(key = 'Store', value = 'Sales', -time)
 ```
 
+Create a plot that compares the weighted control sales to the treated sales for the pre period. 
 ```{r}
 weighted_data %>%
   ggplot(aes(x = time, y = Sales, col = Store)) +
   geom_line() +
   labs(x = 'Time',
        y = 'Total Sales',
-       title = 'Sales for Treated Store and Synthetic Control Store')
+       title = 'Sales for Treated Store and Synthetic Control Store Pre Treatment')
 
-# this is only graphing the pre-treatment period sales
+```
+
+Add the weights for the controls to the dc data frame. Assign a weight of one to the treated store sales. Multiply the weights by the control store sales and sum the sales across the control stores by week. Create a dataframe that has the dates and sales by treated and control store. Add a variable "post" which is a binary variable reporting whether the sales occured pre or post treatment. The implementation date is 7/16/2012. 
+```{r}
+weight_tibble <- tibble(weight=synth_tables$tab.w$w.weights, store_code_uc=synth_tables$tab.w$unit.names)
+
+dc_data <- dc_data %>% left_join(weight_tibble, "store_code_uc")
+
+dc_data[is.na(dc_data)] <- 1
+
+dc_data <- dc_data %>% mutate(w_sales=sales*weight) %>% 
+  mutate(type=if_else(store_code_uc==5133302, 1, 0))
+
+dc_controls <- filter(dc_data, type==0)
+
+dc_controls <- aggregate(dc_controls$w_sales, by=list(dc_controls$week_end),sum)
+
+dc_treats <- filter(dc_data, type==1)
+
+names(dc_controls) <- c("week_end", "w_sales")
+
+dc_controls <- dc_controls %>% mutate(type=0)
+
+dc_treats <- subset(dc_treats, select=c("week_end", "w_sales", "type"))
+
+reg_data <- bind_rows(dc_treats, dc_controls) %>% mutate(post=if_else(week_end > as.Date("2012-07-16"), 1, 0))
+
+names(reg_data) <- c("week_end", "sales", "treat", "post")
+
+```
+
+Run the diff in diff regression. Create a plot for the synthetic control and treated store pre and post category captianship. 
+```{r}
+did_reg <- lm(sales ~ treat + post + treat * post, data = reg_data)
+
+summary(did_reg)
+
+pre_cc <- reg_data %>%
+        filter(week_end <= as.Date("2012-07-16"))
+  
+post_cc <- reg_data %>%
+        filter(week_end > as.Date("2012-07-16"))
+
+did_plot <- ggplot(reg_data, aes(week_end, sales, col = factor(treat))) + 
+      geom_line() +
+      geom_smooth(aes(week_end, sales), data = pre_cc, method = 'lm', se = FALSE) +
+      geom_smooth(aes(week_end, sales), data = post_cc, method = 'lm', se = FALSE) +
+      geom_vline(xintercept = as.numeric(as.Date("2012-07-16"))) +
+      ggtitle("Synthetic control Diff in Diff for DC Peanut Butter") +labs(x="Time", y="Sales")
+
+print(did_plot)
+
 ```
 

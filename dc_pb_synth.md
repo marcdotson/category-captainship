@@ -281,12 +281,16 @@ synth_out <-synth(dataprep_out)
     ## solution.w:
     ##  0.03670724 0.03469845 0.02984143 0.01159974 0.4612645 0.03238041 0.03246352 0.03670635 0.03585614 0.03173574 0.036639 0.02044926 0.02551085 0.03672516 0.03472481 0.03640007 0.0367203 0.02957704
 
+Plot the synthetic control against the treated store over time.
+
 ``` r
 path.plot(dataprep.res = dataprep_out, synth.res = synth_out, Xlab = c('Time'), Ylab = c('Sales'), tr.intake = 15535,
           Main = 'Synthetic Control and Treated Store Sales')
 ```
 
 ![](dc_pb_synth_files/figure-markdown_github/unnamed-chunk-11-1.png)
+
+Plot the difference between the treated and synthetic control sales over time.
 
 ``` r
 gaps.plot(dataprep.res = dataprep_out, synth.res = synth_out, Ylab = 'Difference', Xlab = 'Weeks', tr.intake = 15535,
@@ -327,6 +331,8 @@ synth_tables$tab.pred
     ##       Treated Synthetic Sample Mean
     ## sales 897.081   897.082     1243.61
 
+Create a vector of control sales and weights determined by the data prep. Creat w\_ctrl, which is a vector of the weighted control sales. Create a vector of treated sales. Create a tibble with the treated sales and weighted control sales for the pre period.
+
 ``` r
 controls <- dataprep_out$Z0
 weights <- synth_tables$tab.w$w.weights
@@ -344,17 +350,92 @@ weighted_data <- weighted_data %>%
   gather(key = 'Store', value = 'Sales', -time)
 ```
 
+Create a plot that compares the weighted control sales to the treated sales for the pre period.
+
 ``` r
 weighted_data %>%
   ggplot(aes(x = time, y = Sales, col = Store)) +
   geom_line() +
   labs(x = 'Time',
        y = 'Total Sales',
-       title = 'Sales for Treated Store and Synthetic Control Store')
+       title = 'Sales for Treated Store and Synthetic Control Store Pre Treatment')
 ```
 
 ![](dc_pb_synth_files/figure-markdown_github/unnamed-chunk-17-1.png)
 
+Add the weights for the controls to the dc data frame. Assign a weight of one to the treated store sales. Multiply the weights by the control store sales and sum the sales across the control stores by week. Create a dataframe that has the dates and sales by treated and control store. Add a variable "post" which is a binary variable reporting whether the sales occured pre or post treatment. The implementation date is 7/16/2012.
+
 ``` r
-# this is only graphing the pre-treatment period sales
+weight_tibble <- tibble(weight=synth_tables$tab.w$w.weights, store_code_uc=synth_tables$tab.w$unit.names)
+
+dc_data <- dc_data %>% left_join(weight_tibble, "store_code_uc")
+
+dc_data[is.na(dc_data)] <- 1
+
+dc_data <- dc_data %>% mutate(w_sales=sales*weight) %>% 
+  mutate(type=if_else(store_code_uc==5133302, 1, 0))
+
+dc_controls <- filter(dc_data, type==0)
+
+dc_controls <- aggregate(dc_controls$w_sales, by=list(dc_controls$week_end),sum)
+
+dc_treats <- filter(dc_data, type==1)
+
+names(dc_controls) <- c("week_end", "w_sales")
+
+dc_controls <- dc_controls %>% mutate(type=0)
+
+dc_treats <- subset(dc_treats, select=c("week_end", "w_sales", "type"))
+
+reg_data <- bind_rows(dc_treats, dc_controls) %>% mutate(post=if_else(week_end > as.Date("2012-07-16"), 1, 0))
+
+names(reg_data) <- c("week_end", "sales", "treat", "post")
 ```
+
+Run the diff in diff regression. Create a plot for the synthetic control and treated store pre and post category captianship.
+
+``` r
+did_reg <- lm(sales ~ treat + post + treat * post, data = reg_data)
+
+summary(did_reg)
+```
+
+    ## 
+    ## Call:
+    ## lm(formula = sales ~ treat + post + treat * post, data = reg_data)
+    ## 
+    ## Residuals:
+    ##     Min      1Q  Median      3Q     Max 
+    ## -642.77 -142.96  -25.34  123.73  972.22 
+    ## 
+    ## Coefficients:
+    ##             Estimate Std. Error t value Pr(>|t|)    
+    ## (Intercept)  1228.99      24.25  50.677  < 2e-16 ***
+    ## treat        -331.91      34.30  -9.678  < 2e-16 ***
+    ## post          260.52      34.86   7.474 8.01e-13 ***
+    ## treat:post   -107.15      49.29  -2.174   0.0305 *  
+    ## ---
+    ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
+    ## 
+    ## Residual standard error: 218.3 on 310 degrees of freedom
+    ## Multiple R-squared:  0.5063, Adjusted R-squared:  0.5015 
+    ## F-statistic:   106 on 3 and 310 DF,  p-value: < 2.2e-16
+
+``` r
+pre_cc <- reg_data %>%
+        filter(week_end <= as.Date("2012-07-16"))
+  
+post_cc <- reg_data %>%
+        filter(week_end > as.Date("2012-07-16"))
+
+did_plot <- ggplot(reg_data, aes(week_end, sales, col = factor(treat))) + 
+      geom_line() +
+      geom_smooth(aes(week_end, sales), data = pre_cc, method = 'lm', se = FALSE) +
+      geom_smooth(aes(week_end, sales), data = post_cc, method = 'lm', se = FALSE) +
+      geom_vline(xintercept = as.numeric(as.Date("2012-07-16"))) +
+      ggtitle("Synthetic control Diff in Diff for DC Peanut Butter") +labs(x="Time", y="Sales")
+
+print(did_plot)
+```
+
+![](dc_pb_synth_files/figure-markdown_github/unnamed-chunk-19-1.png)
