@@ -245,7 +245,9 @@ for (i in seq_along(codes)) {
 dc_data <- dc_data %>% filter(!store_code_uc %in% drops) %>% arrange(store_code_uc, week_end) %>%
   mutate(n_week_end=as.numeric(week_end))
 
-control_stores <- control_stores %>% filter(!store_code_uc %in% drops)
+control_stores <- control_stores %>% filter(!store_code_uc %in% drops) 
+
+control_stores <- control_stores %>% arrange(store_code_uc)
 ```
 
 Use data prep to create weights for synthetic control.
@@ -305,24 +307,24 @@ synth_tables$tab.w
 ```
 
     ##         w.weights unit.names unit.numbers
-    ## 1804471     0.037    1804471      1804471
-    ## 3949012     0.035    3949012      3949012
-    ## 5148299     0.030    5148299      5148299
+    ## 1028103     0.037    1028103      1028103
+    ## 1657215     0.035    1657215      1657215
+    ## 1788754     0.030    1788754      1788754
     ## 1802456     0.012    1802456      1802456
-    ## 2078770     0.461    2078770      2078770
+    ## 1804471     0.461    1804471      1804471
+    ## 1807292     0.032    1807292      1807292
     ## 1808501     0.032    1808501      1808501
-    ## 1028103     0.032    1028103      1028103
-    ## 5319048     0.037    5319048      5319048
-    ## 2319813     0.036    2319813      2319813
-    ## 3521655     0.032    3521655      3521655
+    ## 1809307     0.037    1809307      1809307
+    ## 1860488     0.036    1860488      1860488
+    ## 2078770     0.032    2078770      2078770
+    ## 2319813     0.037    2319813      2319813
+    ## 3521655     0.020    3521655      3521655
+    ## 3949012     0.026    3949012      3949012
+    ## 5148299     0.037    5148299      5148299
+    ## 5164822     0.035    5164822      5164822
+    ## 5319048     0.036    5319048      5319048
     ## 5524392     0.037    5524392      5524392
-    ## 1860488     0.020    1860488      1860488
-    ## 1657215     0.026    1657215      1657215
-    ## 1788754     0.037    1788754      1788754
-    ## 1807292     0.035    1807292      1807292
-    ## 7962112     0.036    7962112      7962112
-    ## 5164822     0.037    5164822      5164822
-    ## 1809307     0.030    1809307      1809307
+    ## 7962112     0.030    7962112      7962112
 
 ``` r
 synth_tables$tab.pred
@@ -406,20 +408,20 @@ summary(did_reg)
     ## 
     ## Residuals:
     ##     Min      1Q  Median      3Q     Max 
-    ## -642.77 -142.96  -25.34  123.73  972.22 
+    ## -485.11 -123.47   -7.68  105.04  654.12 
     ## 
     ## Coefficients:
     ##             Estimate Std. Error t value Pr(>|t|)    
-    ## (Intercept)  1228.99      24.25  50.677  < 2e-16 ***
-    ## treat        -331.91      34.30  -9.678  < 2e-16 ***
-    ## post          260.52      34.86   7.474 8.01e-13 ***
-    ## treat:post   -107.15      49.29  -2.174   0.0305 *  
+    ## (Intercept)  899.834     20.913  43.028  < 2e-16 ***
+    ## treat         -2.753     29.575  -0.093    0.926    
+    ## post         142.179     30.057   4.730 3.41e-06 ***
+    ## treat:post    11.184     42.507   0.263    0.793    
     ## ---
     ## Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1
     ## 
-    ## Residual standard error: 218.3 on 310 degrees of freedom
-    ## Multiple R-squared:  0.5063, Adjusted R-squared:  0.5015 
-    ## F-statistic:   106 on 3 and 310 DF,  p-value: < 2.2e-16
+    ## Residual standard error: 188.2 on 310 degrees of freedom
+    ## Multiple R-squared:  0.1351, Adjusted R-squared:  0.1267 
+    ## F-statistic: 16.14 on 3 and 310 DF,  p-value: 8.951e-10
 
 ``` r
 pre_cc <- reg_data %>%

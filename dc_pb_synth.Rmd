@@ -154,7 +154,9 @@ for (i in seq_along(codes)) {
 dc_data <- dc_data %>% filter(!store_code_uc %in% drops) %>% arrange(store_code_uc, week_end) %>%
   mutate(n_week_end=as.numeric(week_end))
 
-control_stores <- control_stores %>% filter(!store_code_uc %in% drops)
+control_stores <- control_stores %>% filter(!store_code_uc %in% drops) 
+
+control_stores <- control_stores %>% arrange(store_code_uc)
 ```
 
 Use data prep to create weights for synthetic control.
