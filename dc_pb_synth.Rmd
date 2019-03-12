@@ -273,3 +273,43 @@ print(did_plot)
 
 ```
 
+Installl and load microsynth. Create the microsynth weights, plots and results. Save the output as msynth_out. Create a vector of weights called m_weights.  
+```{r, fig.width=9, fig.height=4}
+#install.packages("microsynth")
+library(microsynth)
+
+msynth <- microsynth(dc_data, 
+                   idvar="store_code_uc", timevar="n_week_end", intvar="type", 
+                   start.pre=14975, end.pre=15535, end.post=16067, 
+                   match.out="sales", result.var="sales", omnibus.var="sales", plot.var="sales",
+                   test="lower", sep = TRUE)
+
+summary(msynth)
+
+msynth_out <- msynth$w
+
+m_weights <- msynth_out$Weights
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
