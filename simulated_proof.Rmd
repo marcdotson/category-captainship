@@ -1,0 +1,118 @@
+---
+title: "Generating Distributions of P-Values by Retailer"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load packages.
+```{r}
+#install.packages('tidyverse')
+#install.packages("microsynth")
+library(microsynth)
+library(tidyverse)
+```
+
+Create simulated data.
+```{r}
+sales <- vector(mode = 'numeric', length = 160)
+
+store_sales <- c()
+
+for(i in 1:15) {
+  
+  sales <- vector(mode = 'numeric', length = 160)
+
+  for(i in seq_along(sales)) {
+  
+    if(i == 1) {
+    
+      sales[i] <- runif(n = 1, min = 100, max = 1000)
+    
+    } else {
+    
+      sales[i] <- sales[i - 1] + rnorm(n = 1, mean = 10, sd = 0)
+    
+    }
+    
+  }
+  
+  store_sales <- c(store_sales, sales)
+  
+}
+
+sim_data <- tibble(
+  store_code_uc = sort(rep(1:15, times = 160)),
+  retailer_code = ifelse(store_code_uc <= 5, 1, 
+                  ifelse(store_code_uc <= 10, 2, 3)),
+  n_week_end = rep(1:160, times = 15),
+  sales = store_sales)
+
+sim_data <- sim_data %>%
+  mutate(sales = ifelse(retailer_code == 1 & n_week_end > 80, sales * 1.25, sales),
+         treat = ifelse(retailer_code == 1, 1, 0),
+         post = ifelse(n_week_end > 80, 1, 0))
+
+stores <- unique(sim_data$store_code_uc)
+
+control_data <- sim_data %>% filter(store_code_uc>5)
+
+
+for (i in 1:5) {
+  store <- sim_data %>% filter(store_code_uc==stores[i])
+  store_data <- rbind(store, control_data)
+  msynth <- microsynth(store_data, 
+                   idvar="store_code_uc", timevar="n_week_end", intvar="treat", 
+                   start.pre=1, end.pre=80, end.post=160, 
+                   match.out="sales", result.var="sales", omnibus.var="sales", plot.var="sales",
+                   test="twosided", sep = TRUE)
+  
+}
+
+msynth_out <- msynth[[2]]$'160'[1,4]
+  
+
+store_1 <- sim_data %>% filter(store_code_uc==1) 
+
+control_data <- sim_data %>% filter(store_code_uc>5)
+
+store_1_data <- rbind(store_1, control_data)
+
+msynth <- microsynth(store_1_data, 
+                   idvar="store_code_uc", timevar="n_week_end", intvar="treat", 
+                   start.pre=1, end.pre=80, end.post=160, 
+                   match.out="sales", result.var="sales", omnibus.var="sales", plot.var="sales",
+                   test="twosided", sep = TRUE)
+
+
+
+msynth <- microsynth(sim_data, 
+                   idvar="store_code_uc", timevar="n_week_end", intvar="treat", 
+                   start.pre=1, end.pre=80, end.post=160, 
+                   match.out="sales", result.var="sales", omnibus.var="sales", plot.var="sales",
+                   test="twosided", sep = TRUE)
+```
+
+```{r}
+summary(msynth)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
