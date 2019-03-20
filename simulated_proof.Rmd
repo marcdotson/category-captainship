@@ -15,7 +15,7 @@ library(microsynth)
 library(tidyverse)
 ```
 
-Create simulated data.
+Create simulated data by a random draw and add noise each period. Add a 25% increase in sales for the treated retailer in the post treatment period. Choose treatment period at week_end=80, halfway through simultaed time periods. 
 ```{r}
 sales <- vector(mode = 'numeric', length = 160)
 
@@ -55,14 +55,21 @@ sim_data <- sim_data %>%
          treat = ifelse(retailer_code == 1, 1, 0),
          post = ifelse(n_week_end > 80, 1, 0))
 
-stores <- unique(sim_data$store_code_uc)
 
-control_data <- sim_data %>% filter(store_code_uc>5)
+```
 
+Create a loop that creates a synthetic control for each store in each retailer. Collect the p values from each synthetic control and create a distribution of p values across stores by retailer. 
+```{r}
 
-for (i in 1:5) {
-  store <- sim_data %>% filter(store_code_uc==stores[i])
-  store_data <- rbind(store, control_data)
+ret_codes <- unique(sim_data$retailer_code)
+
+for (i in ret_codes) {
+  t_stores <- sim_data %>% filter(retailer_code==ret_codes[i]) 
+  c_stores <- sim_data %>% filter(retailer_code!=ret_codes[i]) 
+  t_store_codes <- unique(t_stores$store_code_uc)
+  for (j in t_store_codes) {
+  store <- t_stores %>% group_by(store_code_uc) %>% filter(store_code_uc==t_store_codes[j]) 
+  store_data <- rbind(store, c_stores)
   msynth <- microsynth(store_data, 
                    idvar="store_code_uc", timevar="n_week_end", intvar="treat", 
                    start.pre=1, end.pre=80, end.post=160, 
@@ -70,37 +77,29 @@ for (i in 1:5) {
                    test="twosided", sep = TRUE)
   
 }
+}
+
 
 msynth_out <- msynth[[2]]$'160'[1,4]
   
 
-store_1 <- sim_data %>% filter(store_code_uc==1) 
-
-control_data <- sim_data %>% filter(store_code_uc>5)
-
-store_1_data <- rbind(store_1, control_data)
-
-msynth <- microsynth(store_1_data, 
-                   idvar="store_code_uc", timevar="n_week_end", intvar="treat", 
-                   start.pre=1, end.pre=80, end.post=160, 
-                   match.out="sales", result.var="sales", omnibus.var="sales", plot.var="sales",
-                   test="twosided", sep = TRUE)
-
-
-
-msynth <- microsynth(sim_data, 
-                   idvar="store_code_uc", timevar="n_week_end", intvar="treat", 
-                   start.pre=1, end.pre=80, end.post=160, 
-                   match.out="sales", result.var="sales", omnibus.var="sales", plot.var="sales",
-                   test="twosided", sep = TRUE)
-```
-
-```{r}
 summary(msynth)
 ```
 
 
 
+```{r}
+for (j in t_store_codes) {
+  store <- t_stores %>% filter(store_code_uc==t_store_codes[j]) 
+  store_data <- rbind(store, c_stores)
+  msynth <- microsynth(store_data, 
+                   idvar="store_code_uc", timevar="n_week_end", intvar="treat", 
+                   start.pre=1, end.pre=80, end.post=160, 
+                   match.out="sales", result.var="sales", omnibus.var="sales", plot.var="sales",
+                   test="twosided", sep = TRUE)
+  
+}
+```
 
 
 
