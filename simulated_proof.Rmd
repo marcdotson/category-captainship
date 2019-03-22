@@ -54,29 +54,25 @@ sim_data <- sim_data %>%
   mutate(sales = ifelse(retailer_code == 1 & n_week_end > 80, sales * 1.25, sales),
          treat = ifelse(retailer_code == 1, 1, 0),
          post = ifelse(n_week_end > 80, 1, 0))
-
-
 ```
 
 Create a loop that creates a synthetic control for each store in each retailer. Collect the p values from each synthetic control and create a distribution of p values across stores by retailer. 
 ```{r}
-
 ret_codes <- unique(sim_data$retailer_code)
 
-for (i in ret_codes) {
+for (i in seq_along(ret_codes)) {
   t_stores <- sim_data %>% filter(retailer_code==ret_codes[i]) 
-  c_stores <- sim_data %>% filter(retailer_code!=ret_codes[i]) 
+  c_stores <- sim_data %>% filter(retailer_code!=ret_codes[i]) %>% mutate(type=0) 
   t_store_codes <- unique(t_stores$store_code_uc)
-  for (j in t_store_codes) {
-  store <- t_stores %>% group_by(store_code_uc) %>% filter(store_code_uc==t_store_codes[j]) 
-  store_data <- rbind(store, c_stores)
+  for (j in seq_along(t_store_codes)) {
+  store <- t_stores %>% filter(store_code_uc==t_store_codes[j]) %>% mutate(type=1)
+  store_data <- bind_rows(store, c_stores)
   msynth <- microsynth(store_data, 
-                   idvar="store_code_uc", timevar="n_week_end", intvar="treat", 
+                   idvar="store_code_uc", timevar="n_week_end", intvar="type", 
                    start.pre=1, end.pre=80, end.post=160, 
                    match.out="sales", result.var="sales", omnibus.var="sales", plot.var="sales",
                    test="twosided", sep = TRUE)
-  
-}
+  }
 }
 
 
@@ -100,18 +96,3 @@ for (j in t_store_codes) {
   
 }
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
