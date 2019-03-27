@@ -11,6 +11,8 @@ Load packages.
 ```{r}
 #install.packages('tidyverse')
 #install.packages("microsynth")
+#install.packages("infer")
+library(infer)
 library(microsynth)
 library(tidyverse)
 ```
