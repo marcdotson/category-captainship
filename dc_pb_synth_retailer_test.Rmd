@@ -34,7 +34,7 @@ dc_data <- dc_data %>%
 dc_data <- dc_data %>% group_by(retailer_code, store_code_uc, actual_manuf, week_end) %>% summarize(sales=sum(sales)) %>%
   arrange(store_code_uc, week_end) 
 
-dc_data <- as.data.frame(dc_data)
+#dc_data <- as.data.frame(dc_data)
 ```
 
 Check store codes to see how many weeks they have. Stores with less than 157 weeks of observations are dropped
@@ -71,7 +71,7 @@ control_stores <- control_stores %>% arrange(store_code_uc)
 dc_data <- dc_data %>% mutate(manuf=if_else(actual_manuf=="CTL", 1, if_else(actual_manuf=="SMU", 2, 3)))
 ```
 
-Create a loop that creates a synthetic control for each store in each retailer. Collect the p values from each synthetic control and create a distribution of p values across stores by retailer. PROBLEM IS THAT IT IS NOT RECOGNIZING ANY VARIABLES IN DC DATA. 
+Create a loop that creates a synthetic control for each store in each retailer. Collect the p values from each synthetic control and create a distribution of p values across manufacturers by retailer. 
 ```{r}
 ret_codes <- unique(dc_data$retailer_code)
 msynth_results <- tibble()
@@ -79,8 +79,8 @@ msynth_results <- tibble()
 for (i in seq_along(ret_codes)) {
   msynth_pvals <- c()
   msynth_effects <- c()
-  t_stores <- dc_data %>% filter(retailer_code==ret_codes[i]) %>% as.numeric(retailer_code)
-  c_stores <- dc_data %>% filter(retailer_code!=ret_codes[i]) %>% mutate(type=0) %>% as.numeric(retailer_code)
+  t_stores <- dc_data %>% filter(retailer_code==ret_codes[i]) 
+  c_stores <- dc_data %>% filter(retailer_code!=ret_codes[i]) %>% mutate(type=0) 
   t_store_codes <- unique(t_stores$store_code_uc)
   for (j in seq_along(t_store_codes)) {
     store <- t_stores %>% filter(store_code_uc==t_store_codes[j]) %>% 
@@ -88,8 +88,8 @@ for (i in seq_along(ret_codes)) {
     store_data <- bind_rows(store, c_stores)
     manufs <- unique(dc_data$manuf)
     for (k in seq_along(manufs)) {
-      manuf_data <- dc_data %>%
-        filter(manuf == manufs[i])
+      manuf_data <- store_data %>%
+        filter(manuf == manufs[k])
       msynth <- microsynth(data = manuf_data,
                            idvar = "store_code_uc",
                            intvar = "type",
@@ -106,8 +106,8 @@ for (i in seq_along(ret_codes)) {
                            sep = TRUE,
                            use.survey = FALSE)
   
-  msynth_pvals <- c(msynth_pvals, msynth[[2]]$`160`[1,4])
-  msynth_effects <- c(msynth_effects, msynth[[2]]$`160`[1,3])
+  msynth_pvals <- c(msynth_pvals, msynth[[2]]$`16067`[1,4])
+  msynth_effects <- c(msynth_effects, msynth[[2]]$`16067`[1,3])
   
     }
   }
@@ -140,11 +140,69 @@ msynth_results %>%
   facet_wrap(~retailer)
 ```
 
+Create a loop that creates a synthetic control for each store in each retailer. Collect the p values from each synthetic control and create a distribution of p values across stores by retailer. 
+```{r}
+dc_store_data <- dc_data %>% group_by(retailer_code, store_code_uc, n_week_end) %>% summarise(sales=sum(sales))
 
+msynth_results <- tibble()
 
+for (i in seq_along(ret_codes)) {
+  msynth_pvals <- c()
+  msynth_effects <- c()
+  t_stores <- dc_store_data %>% filter(retailer_code==ret_codes[i]) 
+  c_stores <- dc_store_data %>% filter(retailer_code!=ret_codes[i]) %>% mutate(type=0) 
+  t_store_codes <- unique(t_stores$store_code_uc)
+  for (j in seq_along(t_store_codes)) {
+    store <- t_stores %>% filter(store_code_uc==t_store_codes[j]) %>% 
+      mutate(type = 1)
+    store_data <- bind_rows(store, c_stores)
+      msynth <- microsynth(data = store_data,
+                           idvar = "store_code_uc",
+                           intvar = "type",
+                           timevar = "n_week_end",
+                           start.pre = 14975, 
+                           end.pre = 15535, 
+                           end.post = 16067,
+                           match.out = "sales",
+                           match.covar = "sales",
+                           result.var="sales", 
+                           omnibus.var="sales", 
+                           plot.var="sales",
+                           test="twosided", 
+                           sep = TRUE,
+                           use.survey = FALSE)
+  
+  msynth_pvals <- c(msynth_pvals, msynth[[2]]$`16067`[1,4])
+  msynth_effects <- c(msynth_effects, msynth[[2]]$`16067`[1,3])
+  
+    }
+  
+  loop_results <- tibble(
+    pval = msynth_pvals,
+    effect = msynth_effects,
+    retailer = ret_codes[i]
+  )
+  
+  msynth_results <- msynth_results %>%
+    bind_rows(loop_results)
 
+}
+```
 
+Plotting distributions of p-values and effects.
+```{r}
+msynth_results %>%
+  ggplot(aes(x = pval)) +
+  geom_histogram() +
+  facet_wrap(~retailer)
+```
 
+```{r}
+msynth_results %>%
+  ggplot(aes(x = effect)) +
+  geom_histogram() +
+  facet_wrap(~retailer)
+```
 
 
 
