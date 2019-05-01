@@ -35,7 +35,7 @@ Validator, and Private Label.
 load("main_manuf_sales.RData")
 ```
 
-Create 'retailer_weekly', which is filtered for retailers in Minnesota, grouped by retailer code, brand_name, and week_end, creating weekly sales
+Create 'retailer_weekly', which is filtered for retailers in Missouri, grouped by retailer code, brand_name, and week_end, creating weekly sales
 and average prices by manufacturer within retailer. 'ret_codes' contains each unique retailer code. 
 The 'for' loop goes over each unique retailer code and graphs the weekly sales by manufacturer for each retailer code. It also plots the average
 weekly price by manufacturer by retailer. It places these graphs next to each other for easy comparison. There is a verticle line at the 
