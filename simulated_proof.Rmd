@@ -17,7 +17,7 @@ library(microsynth)
 library(tidyverse)
 ```
 
-Create simulated data by a random draw and add noise each period. Add a 25% increase in sales for the treated retailer in the post treatment period. Choose treatment period at week_end=80, halfway through simultaed time periods. 
+Create simulated data by a random draw and add noise each period. Add a 25% increase in sales for the treated retailer in the post treatment period. Choose treatment period at week_end=80, halfway through simulated time periods. 
 ```{r}
 sales <- vector(mode = 'numeric', length = 160)
 
@@ -84,7 +84,7 @@ for (i in seq_along(ret_codes)) {
     for (k in seq_along(manufs)) {
       manuf_data <- store_data %>%
         filter(manuf == manufs[k])
-      msynth <- microsynth(data = manuf_data,
+      msynth <- microsynth(data = as.data.frame(manuf_data),
                            idvar = "store_code_uc",
                            intvar = "type",
                            timevar = "n_week_end",
@@ -120,35 +120,43 @@ Plotting distributions of p-values and effects.
 msynth_results %>%
   ggplot(aes(x = pval)) +
   geom_histogram() +
-  facet_wrap(~retailer)
+  facet_wrap(~retailer) +
+  labs(x = 'P-Value',
+       y = 'Count',
+       title = 'P-Values Calculated at Manufacturer Level for Retailers in Simulated Data',
+       subtitle = 'Treated = Retailer 1')
 ```
 
 ```{r}
 msynth_results %>%
   ggplot(aes(x = effect)) +
   geom_histogram() +
-  facet_wrap(~retailer)
+  facet_wrap(~retailer) +
+  labs(x = 'Treatment Effect',
+       y = 'Count',
+       title = 'Treatment Effect Calculated at Manufacturer Level for Retailers in Simulated Data',
+       subtitle = 'Treated = Retailer 1')
 ```
 
 Try doing a microsynth loop where each retailer is paired with each other retailer. The retailer that causes the pairs to be significant/positive should be the treated retailer. Aggregate sim data across manufacturers to do synthetic control at the store level. 
 ```{r}
-ret_codes <- unique(sim_data$retailer_code)
-
 ret_code_combo <- as_tibble(expand.grid(treat=ret_codes, control=ret_codes)) %>% filter(treat!=control)
 
-sim_data <- sim_data %>% group_by(retailer_code, store_code_uc, n_week_end) %>% summarise(sales=sum(sales))
-
+store_sim_data <- sim_data %>% group_by(retailer_code, store_code_uc, n_week_end) %>% summarise(sales=sum(sales))
 ```
 
 ```{r}
 msynth_results <- tibble()
+msynth_pvals <- c()
+msynth_effects <- c()
+loop_results <- tibble()
 
 for (i in 1:6) {
   msynth_pvals <- c()
   msynth_effects <- c()
   loop_rets <- ret_code_combo %>% filter(row_number()==i) %>% as_vector()
-  t_stores <- sim_data %>% filter(retailer_code==unname(loop_rets[1])) 
-  c_stores <- sim_data %>% filter(retailer_code==unname(loop_rets[2])) %>% mutate(type=0) 
+  t_stores <- store_sim_data %>% filter(retailer_code==unname(loop_rets[1])) 
+  c_stores <- store_sim_data %>% filter(retailer_code==unname(loop_rets[2])) %>% mutate(type=0) 
   t_store_codes <- unique(t_stores$store_code_uc)
   for (j in seq_along(t_store_codes)) {
     store <- t_stores %>% filter(store_code_uc==t_store_codes[j]) %>% 
@@ -177,7 +185,7 @@ for (i in 1:6) {
   loop_results <- tibble(
     pval = msynth_pvals,
     effect = msynth_effects,
-    retailer = ret_codes[i]
+    retailer = paste0(unname(loop_rets[1]), ",", unname(loop_rets[2]))
   )
   
   msynth_results <- msynth_results %>%
@@ -186,7 +194,28 @@ for (i in 1:6) {
 }
 ```
 
+Plot the P-Values for synthetic controls created from every combination of retailers.
+```{r}
+msynth_results %>%
+  ggplot(aes(x = pval)) +
+  geom_histogram() +
+  facet_wrap(~retailer) +
+  labs(x = 'P-Value',
+       y = 'Count',
+       title = 'P-Values for Retailer Combinations at the Store Level for Simulated Data',
+       subtitle = 'Treated = 1')
+```
 
+```{r}
+msynth_results %>%
+  ggplot(aes(x = effect)) +
+  geom_histogram() +
+  facet_wrap(~retailer) +
+  labs(x = 'Effect',
+       y = 'Count',
+       title = 'Treatment Effects for Retailer Combinations at Store Level for Simulated Data',
+       subtitle = 'Treated = 1')
+```
 
 
 
