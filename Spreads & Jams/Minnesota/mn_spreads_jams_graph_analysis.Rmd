@@ -32,7 +32,7 @@ memory.limit(size = 50000)
 
 Load data.
 ```{r}
-load('spreads_jams_clean.RData')
+load('mn_spreads_jams_clean.RData')
 ```
 
 Create tbl `main_manuf_sales` which contains movement data for the brands owned
