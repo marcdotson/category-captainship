@@ -172,10 +172,31 @@ save(full_11_12_13, file = "full_11_12_13.RData")
 rm(switchers, i, parent_switchers, retail_switchers, stores, switcher_test, ind_store_sales)
 ```
 
-Save the ice cream clean data file. Filter for each state and save the state cleaned data files as well. 
+Save the ice cream clean data file. Load in data file. 
 ```{r}
 save(full_11_12_13, file="ice_cream_cleaned.RData")
 
+load("ice_cream_cleaned.RData")
+```
+
+Filter `main_manuf_sales` for observations where `retailer_code` != NA and save as tbl `retail_no_NA`. 
+Filter `main_manuf_sales` for observations where `retailer_code` = NA and impute `parent_code` to replace those values, then recombine with the observations that originally had a `retailer_code`.
+```{r}
+retail_no_NA <- full_11_12_13 %>%
+  filter(!is.na(retailer_code))
+
+full_11_12_13 <- full_11_12_13 %>%
+  filter(is.na(retailer_code)) %>%
+  mutate(retailer_code = parent_code) %>%
+  bind_rows(retail_no_NA)
+
+rm(retail_no_NA)
+
+save(full_11_12_13, file="ice_cream_cleaned.RData")
+```
+
+Filter for each state and save the state cleaned data files as well. 
+```{r}
 mn_data <- full_11_12_13 %>% filter(fips_state_descr == "MN")
 nd_data <- full_11_12_13 %>% filter(fips_state_descr == "ND")
 mo_data <- full_11_12_13 %>% filter(fips_state_descr == "MO")
