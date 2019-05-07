@@ -1,0 +1,111 @@
+---
+title: "minnesota_jams.Rmd"
+output: word_document    
+---
+
+This code performs the graphical analysis of retailers in the spreads and jams category in minnesota.
+
+Install packages.
+```{r eval =FALSE, include=FALSE}
+install.packages("tidyverse")
+install.packages("tibbletime")
+install.packages("lubridate")
+install.packages("tsoutliers")
+install.packages("forecast")
+install.packages("rmarkdown")
+install.packages("purrr")
+install.packages("plyr")
+install.packages("cowplot")
+```
+
+Load packages and increase memory limit.
+```{r results='hide'}
+library(cowplot)
+library(plyr)
+library(tidyverse)
+library(tibbletime)
+library(lubridate)
+library(tsoutliers)
+library(forecast)
+memory.limit(size = 50000)
+```
+
+Load data.
+```{r}
+load('spreads_jams_clean.RData')
+```
+
+Create tbl `main_manuf_sales` which contains movement data for the brands owned
+by Smucker's, Welch's, and private label. Create a new variable `actual_manuf` which denotes whether Smucker's, 
+Welch's, or private label own a particular brand. This allows for sales across different brands to be aggregated 
+later to sales by manufacturer.
+```{r}
+main_manuf_sales <- full_11_12_13 %>% 
+  filter(manuf_name %in% c("SMU","SAN","R W", "DIC", "KIN", "CRO", "WEL", "CTL")) %>% 
+  mutate(actual_manuf = if_else(manuf_name == "SMU","SMU",
+                        if_else(manuf_name == "SAN", "SMU", 
+                        if_else(manuf_name == "R W", "SMU", 
+                        if_else(manuf_name == "DIC", "SMU",
+                        if_else(manuf_name == "KIN", "SMU", 
+                        if_else(manuf_name == "CRO", "SMU",
+                        if_else(manuf_name == "WEL", "WEL","CTL"))))))))
+```
+
+Create `retailer_weekly`, which is filtered for retailers in Minnesota, grouped by `retailer_code`, `brand_name`, and `week_end`, creating weekly sales and average prices by manufacturer within retailer. `ret_codes` contains each unique retailer code. The loop goes over each unique `retailer_code` and graphs the weekly sales by manufacturer for each `retailer_code`. It also plots the average weekly price by manufacturer by retailer. It places these graphs next to each other for easy comparison. There is a verticle line at the approximate CC implementation date. Each graph includes year specific regression lines.
+```{r}
+retailer_weekly <- main_manuf_sales %>%
+  filter(fips_state_descr == "MN") %>%
+  group_by(retailer_code, actual_manuf, week_end) %>%
+  summarize(sales = sum(sales), av_price = mean(price))
+
+ret_codes <- unique(retailer_weekly$retailer_code)
+
+for (i in seq_along(ret_codes)) {
+  
+  single_ret <- retailer_weekly %>%
+    filter(retailer_code == ret_codes[i])
+  
+  pre_cc <- single_ret %>%
+        filter(week_end <= as.Date("2012-07-16"))
+  
+  post_cc <- single_ret %>%
+        filter(week_end > as.Date("2012-07-16"))
+  
+  graph_1 <- ggplot(single_ret, aes(week_end, sales, color = actual_manuf)) + geom_line() + 
+    
+    geom_smooth(aes(week_end, sales), data = pre_cc, method = 'lm', se = FALSE) +
+    
+    geom_smooth(aes(week_end, sales), data = post_cc, method = 'lm', se = FALSE) +
+    
+    scale_y_log10() + theme(plot.title = element_text(size = 10), legend.position = "bottom", axis.text.y = element_blank(), 
+                            axis.ticks.y = element_blank(), 
+                            axis.title = element_text(size = 7), axis.text = element_text(size = 7), legend.title = element_text(size = 6),
+                            legend.text = element_text(size = 6)) + 
+    
+    xlab("Date") + ylab("Sales") + labs(color = 'Manuf') + ggtitle(paste("Weekly Sales for Retailer", ret_codes[i])) + 
+    
+    geom_vline(xintercept = as.numeric(as.Date("2012-07-16")))
+  
+  graph_2 <- ggplot(single_ret, aes(week_end, av_price, color = actual_manuf)) + geom_line() + 
+    
+    geom_smooth(aes(week_end, av_price), data = pre_cc, method = 'lm', se = FALSE) +
+    
+    geom_smooth(aes(week_end, av_price), data = post_cc, method = 'lm', se = FALSE) +
+    
+    scale_y_log10() + xlab("Date") + ylab("Avg Price") + labs(color = 'Manuf') + 
+    
+    theme(plot.title = element_text(size = 10), axis.text = element_text(size = 7), 
+          axis.title = element_text(size = 7), legend.text = element_text(size = 6), legend.title = element_text(size = 6), 
+          
+          legend.position = "bottom") +
+    ggtitle(paste("Avg Weekly Price for Retailer", ret_codes[i])) + geom_vline(xintercept = as.numeric(as.Date("2012-07-16")))
+  
+  paired_graph <- plot_grid(graph_1, graph_2)
+  
+  print(paired_graph)
+  
+}
+```
+
+Captain: Smucker's
+Validator: Welch's
