@@ -21,10 +21,17 @@ Assign the manfacturer (Private Label, Unilever, Nestle) for each brand. Convert
 ```{r}
 mn_data <- mn_data %>%
   filter(manuf_name %in% c("DRE", "HAA", "BEN", "TAL", "BRE", "UNI", "CTL")) %>%
-  mutate(actual_manuf = if_else(manuf_name == "DRE", "nestle", if_else(manuf_name=="HAA", "nestle", if_else(manuf_name=="BEN", "unilever", if_else(manuf_name=="TAL", "unilever", if_else(manuf_name=="BRE", "unilever", if_else(manuf_name=="UNI", "unilever", "CTL"))))))) %>%
+  mutate(actual_manuf = if_else(manuf_name == "DRE", "nestle", 
+                        if_else(manuf_name=="HAA", "nestle", 
+                        if_else(manuf_name=="BEN", "unilever", 
+                        if_else(manuf_name=="TAL", "unilever", 
+                        if_else(manuf_name=="BRE", "unilever", 
+                        if_else(manuf_name=="UNI", "unilever", "CTL"))))))) %>%
   mutate(store_code_uc=as.numeric(store_code_uc))
 
-mn_data <- mn_data %>% group_by(retailer_code, store_code_uc, actual_manuf, week_end) %>% summarize(sales=sum(sales)) %>%
+mn_data <- mn_data %>% 
+  group_by(retailer_code, store_code_uc, actual_manuf, week_end) %>% 
+  summarize(sales=sum(sales)) %>%
   arrange(store_code_uc, week_end) 
 ```
 
@@ -52,31 +59,53 @@ for (i in seq_along(codes)) {
 
 }
 
-mn_data <- mn_data %>% filter(!store_code_uc %in% drops) %>% arrange(retailer_code, store_code_uc, week_end) %>%
+mn_data <- mn_data %>% 
+  filter(!store_code_uc %in% drops) %>% 
+  arrange(retailer_code, store_code_uc, week_end) %>%
   mutate(n_week_end=as.numeric(week_end))
 
-mn_data <- mn_data %>% mutate(manuf=if_else(actual_manuf=="CTL", 1, if_else(actual_manuf=="UNI", 2, 3)))
+mn_data <- mn_data %>% 
+  mutate(manuf=if_else(actual_manuf=="CTL", 1, 
+               if_else(actual_manuf=="unilever", 2, 3)))
 ```
 
-Create a vector of the unique retailer codes in MN Data. Create a loop that creates a synthetic control for each manufacturer in each store for each retailer. Collect the p values and treatment effects from each synthetic control. The target reset date was 03/26/2012, we chose the implementation date for the week after (since 03/26 isn't an option), which was 03/31/2012. 
-```{r, message=FALSE, warning=FALSE}
+Create a vector of the unique retailer codes in MN Data. Create a loop that creates a synthetic control for each manufacturer in each store for each retailer. Collect the p values and treatment effects from each synthetic control. The target reset date was 03/26/2012, we chose the implementation date for the week after (since 03/26 isn't an option), which was 03/31/2012.
+
+###################################################
+```{r eval=FALSE, include=FALSE}
 ret_codes <- unique(mn_data$retailer_code)
 msynth_results <- tibble()
-msynth_pvals <- c()
-msynth_effects <- c()
 
 for (i in seq_along(ret_codes)) {
-  t_stores <- mn_data %>% filter(retailer_code==ret_codes[i]) 
-  c_stores <- mn_data %>% filter(retailer_code!=ret_codes[i]) %>% mutate(type=0) 
+  
+  msynth_pvals <- c()
+  
+  msynth_effects <- c()
+  
+  t_stores <- mn_data %>% 
+    filter(retailer_code==ret_codes[i]) 
+  
+  c_stores <- mn_data %>% 
+    filter(retailer_code!=ret_codes[i]) %>% 
+    mutate(type = 0) 
+  
   t_store_codes <- unique(t_stores$store_code_uc)
+  
   for (j in seq_along(t_store_codes)) {
-    store <- t_stores %>% filter(store_code_uc==t_store_codes[j]) %>% 
+    
+    store <- t_stores %>% 
+      filter(store_code_uc==t_store_codes[j]) %>% 
       mutate(type = 1)
+    
     store_data <- bind_rows(store, c_stores)
+    
     manufs <- unique(mn_data$manuf)
+    
     for (k in seq_along(manufs)) {
+      
       manuf_data <- store_data %>%
         filter(manuf == manufs[k])
+      
       msynth <- microsynth(data = as.data.frame(manuf_data),
                            idvar = "store_code_uc",
                            intvar = "type",
@@ -92,16 +121,17 @@ for (i in seq_along(ret_codes)) {
                            use.survey = FALSE)
   
   msynth_pvals <- c(msynth_pvals, msynth[[2]]$`16067`[1,4])
+  
   msynth_effects <- c(msynth_effects, msynth[[2]]$`16067`[1,3])
   
     }
+    
   }
   
   loop_results <- tibble(
     pval = msynth_pvals,
     effect = msynth_effects,
-    retailer = ret_codes[i]
-  )
+    retailer = ret_codes[i])
   
   msynth_results <- msynth_results %>%
     bind_rows(loop_results)
@@ -117,7 +147,7 @@ msynth_results %>%
   facet_wrap(~retailer) + labs(x="P-Value", y="Count", title="Manufacturer Level P-Values for MN Ice Cream")
 ```
 
-
+Plot the distribution of treatment effects at the manufacturer level.
 ```{r}
 msynth_results %>%
   ggplot(aes(x = effect)) +
