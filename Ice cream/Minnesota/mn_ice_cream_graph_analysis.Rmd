@@ -1,0 +1,128 @@
+---
+title: "Minnesota Ice Cream Graph Analysis"
+output: word_document
+---
+
+Note: This document contains all the code used to produce the graphs for the ice cream category in Minnesota. 
+
+Install library.
+```{r eval=FALSE, include=FALSE}
+install.packages("tidyverse")
+install.packages("tibbletime")
+install.packages("lubridate")
+install.packages("tsoutliers")
+install.packages("forecast")
+install.packages("rmarkdown")
+install.packages("purrr")
+install.packages("plyr")
+install.packages("cowplot")
+```
+
+Load library and increase memory limit.
+```{r}
+library(cowplot)
+library(plyr)
+library(tidyverse)
+library(tibbletime)
+library(lubridate)
+library(tsoutliers)
+library(forecast)
+memory.limit(size = 50000)
+```
+
+Load in the Minnesota ice cream cleaned data. Read in `brands` file which contains the parent companies of all brands listed in `mn_data`.
+```{r}
+load("mn_ice_cream_clean.RData")
+
+brands <- read_csv("ice_cream_brands - Sheet1.csv")
+```
+
+Create `unilever` and `nestle` which contain the brands owned by Unilever and Nestle. Create tbl `main_manuf_sales` which contains movement data for the brands owned by Unilever, Nestle, and private label. Create a new variable `actual_manuf` which denotes ownership by either Unilever, Nestle or private label. This allows for sales across different brands to be aggregated later to sales by manufacturer.
+```{r}
+unilever<- brands %>%
+  filter(Manuf == "unilever"|Manuf=="Unilever")
+
+nestle<- brands %>%
+  filter(Manuf == "Nestle")
+
+main_manuf_sales <- mn_data %>%
+  filter(manuf_name %in% c("DRE", "HAA", "BEN", "TAL", "BRE", "UNI", "CTL")) %>%
+  mutate(actual_manuf = if_else(manuf_name == "DRE", "nestle", if_else(manuf_name=="HAA", "nestle", if_else(manuf_name=="BEN", "unilever", if_else(manuf_name=="TAL", "unilever", if_else(manuf_name=="BRE", "unilever", if_else(manuf_name=="UNI", "unilever", "CTL")))))))
+```
+
+Filter `main_manuf_sales` for observations where `retailer_code` != NA and save as tbl `retail_no_NA`. 
+Filter `main_manuf_sales` for observations where `retailer_code` = NA and impute `parent_code` to replace those values, then recombine with the observations that originally had a `retailer_code`.
+```{r}
+retail_no_NA <- main_manuf_sales %>%
+  filter(!is.na(retailer_code))
+
+main_manuf_sales <- main_manuf_sales %>%
+  filter(is.na(retailer_code)) %>%
+  mutate(retailer_code = parent_code) %>%
+  bind_rows(retail_no_NA)
+
+rm(retail_no_NA)
+
+save(main_manuf_sales, file = "main_manuf_sales.RData")
+```
+
+Create `retailer_weekly`, which is filtered for retailers in Minnesota, grouped by retailer code, brand_name, and week_end, creating weekly sales and average prices by manufacturer within retailer. `ret_codes` contains each unique retailer code. The `for` loop goes over each unique retailer code and graphs the weekly sales by manufacturer for each retailer code. It also plots the average weekly price by manufacturer by retailer. It places these graphs next to each other for easy comparison. There is a verticle line at the approximate CC implementation date. Each graph includes year specific regression lines.
+```{r}
+retailer_weekly <- main_manuf_sales %>%
+  filter(fips_state_descr == "MN") %>%
+  group_by(retailer_code, actual_manuf, week_end) %>%
+  summarize(sales = sum(sales), av_price = mean(price))
+
+ret_codes <- unique(retailer_weekly$retailer_code)
+
+for (i in seq_along(ret_codes)) {
+  
+  single_ret <- retailer_weekly %>%
+    filter(retailer_code == ret_codes[i])
+  
+  pre_cc <- single_ret %>%
+        filter(week_end <= as.Date("2012-03-26"))
+  
+  post_cc <- single_ret %>%
+        filter(week_end > as.Date("2012-03-26"))
+  
+  graph_1 <- ggplot(single_ret, aes(week_end, sales, color = actual_manuf)) + geom_line() + 
+    
+    geom_smooth(aes(week_end, sales), data = pre_cc, method = 'lm', se = FALSE) +
+    
+    geom_smooth(aes(week_end, sales), data = post_cc, method = 'lm', se = FALSE) +
+    
+    scale_y_log10() + theme(plot.title = element_text(size = 10), legend.position = "bottom", axis.text.y = element_blank(), 
+                            axis.ticks.y = element_blank(), 
+                            axis.title = element_text(size = 7), axis.text = element_text(size = 7), legend.title = element_text(size = 6),
+                            legend.text = element_text(size = 6)) + 
+    
+    xlab("Date") + ylab("Sales") + labs(color = 'Manuf') + ggtitle(paste("Weekly Sales for Retailer", ret_codes[i])) + 
+    
+    geom_vline(xintercept = as.numeric(as.Date("2012-03-26")))
+  
+  graph_2 <- ggplot(single_ret, aes(week_end, av_price, color = actual_manuf)) + geom_line() + 
+    
+    geom_smooth(aes(week_end, av_price), data = pre_cc, method = 'lm', se = FALSE) +
+    
+    geom_smooth(aes(week_end, av_price), data = post_cc, method = 'lm', se = FALSE) +
+    
+    scale_y_log10() + xlab("Date") + ylab("Avg Price") + labs(color = 'Manuf') + 
+    
+    theme(plot.title = element_text(size = 10), axis.text = element_text(size = 7), 
+          axis.title = element_text(size = 7), legend.text = element_text(size = 6), legend.title = element_text(size = 6), 
+          
+          legend.position = "bottom") +
+    ggtitle(paste("Avg Weekly Price for Retailer", ret_codes[i])) + geom_vline(xintercept = as.numeric(as.Date("2012-03-26")))
+  
+  paired_graph <- plot_grid(graph_1, graph_2)
+  
+  print(paired_graph)
+  
+}
+```
+
+captain: Unilever
+validator: Nestle
+
+notes: 
