@@ -174,13 +174,13 @@ rm(switchers, i, parent_switchers, retail_switchers, stores, switcher_test, ind_
 
 Save the ice cream clean data file. Load in data file. 
 ```{r}
-save(full_11_12_13, file="ice_cream_cleaned.RData")
+save(full_11_12_13, file="ice_cream_clean.RData")
 
-load("ice_cream_cleaned.RData")
+load("ice_cream_clean.RData")
 ```
 
-Filter `main_manuf_sales` for observations where `retailer_code` != NA and save as tbl `retail_no_NA`. 
-Filter `main_manuf_sales` for observations where `retailer_code` = NA and impute `parent_code` to replace those values, then recombine with the observations that originally had a `retailer_code`.
+Filter `full_11_12_13` for observations where `retailer_code` != NA and save as tbl `retail_no_NA`. 
+Filter `full_11_12_13` for observations where `retailer_code` = NA and impute `parent_code` to replace those values, then recombine with the observations that originally had a `retailer_code`.
 ```{r}
 retail_no_NA <- full_11_12_13 %>%
   filter(!is.na(retailer_code))
@@ -192,7 +192,7 @@ full_11_12_13 <- full_11_12_13 %>%
 
 rm(retail_no_NA)
 
-save(full_11_12_13, file="ice_cream_cleaned.RData")
+save(full_11_12_13, file="ice_cream_clean.RData")
 ```
 
 Filter for each state and save the state cleaned data files as well. 
