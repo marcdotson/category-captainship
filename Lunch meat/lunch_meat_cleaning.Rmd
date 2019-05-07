@@ -65,10 +65,7 @@ full_11 <- move_11 %>%
 rm(move_11, stores_11)
 ```
 
-
-Read in files for 2012 using a for loop which reads in a file if it is a 2012 movement file and binds each of the separate files
-into one.
-
+Read in files for 2012 using a for loop which reads in a file if it is a 2012 movement file and binds each of the separate files into one.
 ```{r}
 move_12 <- tibble()
 
@@ -96,10 +93,7 @@ full_12 <- move_12 %>%
 rm(move_12, stores_12)
 ```
 
-
-Read in files for 2013 using a for loop which reads in a file if it is a 2013 movement file and binds each of the separate files
-into one.
-
+Read in files for 2013 using a for loop which reads in a file if it is a 2013 movement file and binds each of the separate files into one.
 ```{r}
 move_13 <- tibble()
 
@@ -129,10 +123,8 @@ full_13 <- move_13 %>%
 rm(move_13, stores_13, products)
 ```
 
-
-Merge 'full_11/12/13' into one file 'full_11_12_13' and change the 'week_end' variable to 'year-month-day' format 
+Merge `full_11/12/13` into one file `full_11_12_13` and change the `week_end` variable to `year-month-day` format 
 and create sales variable which is units * price.
-
 ```{r}
 full_11_12_13 <- full_11 %>%
   bind_rows(full_12) %>%
@@ -140,12 +132,8 @@ full_11_12_13 <- full_11 %>%
   mutate(week_end = ymd(week_end), sales = units * price)
 ```
 
-
-Create tbls containing each distinct store code ('store_id_11/12/13'). Anti join those three tbls to get 6 tbls containing just the stores that 
-only show up in 1 of the 2 years ex:'in_11_not_12'. Anti join those  tbls with the full movement file to remove the stores that only appear in 1
-of 2 years. Create a new variable 'manuf_name' which contains the first 3 characters of the brand_name and allows for easy identification of the 
+Create tbls containing each distinct store code (`store_id_11/12/13`). Anti join those three tbls to get 6 tbls containing just the stores that only show up in 1 of the 2 years ex:`in_11_not_12`. Anti join those  tbls with the full movement file to remove the stores that only appear in 1 of 2 years. Create a new variable `manuf_name` which contains the first 3 characters of the brand_name and allows for easy identification of the 
 manufacturers. Save the full movement file and clear unnecessary files from memory.
-
 ```{r}
 store_id_11 <- distinct(full_11, store_code_uc)
 store_id_12 <- distinct(full_12, store_code_uc)
@@ -174,9 +162,7 @@ rm(full_11, full_12, full_13, in_11_not_12, in_11_not_13, in_12_not_11, in_12_no
 ```
 
 
-Create vector 'stores' that contains each distinct store in the full movement file (containing data for all years). Define a vector 'retail_switchers' that will contain the codes
-for every store that switches retail codes between 2011, 2012, or 2013. The 'for' loop finds these codes and stores them in 'retail_switchers'.
-
+Create vector `stores` that contains each distinct store in the full movement file (containing data for all years). Define a vector 'retail_switchers' that will contain the codes for every store that switches retail codes between 2011, 2012, or 2013. The `for` loop finds these codes and stores them in `retail_switchers`.
 ```{r}
 stores <- unique(full_11_12_13$store_code_uc)
 
@@ -197,10 +183,7 @@ for (i in seq_along(stores)) {
 }
 ```
 
-
-Define a vector 'parent_switchers' that will contain the codes for every store that switches parent codes between 2011, 2012, or 2013. The 'for' loop
-finds these codes and stores them in 'parent_switchers'.
-
+Define a vector `parent_switchers` that will contain the codes for every store that switches parent codes between 2011, 2012, or 2013. The `for` loop finds these codes and stores them in `parent_switchers`.
 ```{r}
 parent_switchers <- vector("numeric", length = 0)
 
@@ -219,18 +202,14 @@ for (i in seq_along(stores)) {
 }
 ```
 
-
-Print 'retail_switchers' and 'parent_switchers'.
-
+Print `retail_switchers` and `parent_switchers`.
 ```{r}
 retail_switchers
 
 parent_switchers
 ```
 
-
-Create tbl 'switchers' that contains the data for every store that switches retail or parent codes. Filter out these stores from the full movement file.
-
+Create tbl `switchers` that contains the data for every store that switches retail or parent codes. Filter out these stores from the full movement file.
 ```{r}
 switchers <- full_11_12_13 %>%
   filter(store_code_uc %in% retail_switchers | store_code_uc %in% parent_switchers)
@@ -243,35 +222,32 @@ save(full_11_12_13, file = "full_11_12_13.RData")
 rm(switchers, i, parent_switchers, retail_switchers, stores, switcher_test, ind_store_sales)
 ```
 
+Filter `main_manuf_sales` for observations where `retailer_code` != NA and save as tbl `retail_no_NA`. Filter `main_manuf_sales` for observations where `retailer_code` = NA and impute `parent_code` to replace those values, then recombine with the observations that originally had a `retailer_code`.
+```{r}
+retail_no_NA <- full_11_12_13 %>%
+  filter(!is.na(retailer_code))
 
+full_11_12_13 <- full_11_12_13 %>%
+  filter(is.na(retailer_code)) %>%
+  mutate(retailer_code = parent_code) %>%
+  bind_rows(retail_no_NA)
 
+rm(retail_no_NA)
+```
 
+Save the cleaned lunch meat data file. Filter for each state and save the cleaned data files for each state. 
+```{r}
+save(full_11_12_13, file="lunchmeat_clean.RData")
 
+mn_data <- filter(full_11_12_13, fips_state_descr=="MN")
+dc_data <- filter(full_11_12_13, fips_state_descr=="DC")
+mo_data <- filter(full_11_12_13, fips_state_descr=="MO")
+nd_data <- filter(full_11_12_13, fips_state_descr=="ND")
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+save(mn_data, file="mn_lunchmeat_clean.RData")
+save(dc_data, file="dc_lunchmeat_clean.RData")
+save(mo_data, file="mo_lunchmeat_clean.RData")
+save(nd_data, file="nd_lunchmeat_clean.Rdata")
+```
 
 
