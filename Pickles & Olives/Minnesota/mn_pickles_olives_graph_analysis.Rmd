@@ -33,7 +33,7 @@ memory.limit(size = 50000)
 
 Load minnesota data.
 ```{r}
-load('mn_pickles_olives_data.RData')
+load('mn_pickles_olives_clean.RData')
 ```
 
 Create `tbl`, `main_manuf_sales` which contains movement data for the brands owned by Musco, Pinnacle, and private label. Create a new variable `actual_manuf` which denotes ownership by either pinnacle, private label, or musco.
