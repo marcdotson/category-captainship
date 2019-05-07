@@ -251,8 +251,8 @@ mo_data <- full_11_12_13 %>%
 dc_data <- full_11_12_13 %>%
   filter(fips_state_descr == 'DC')
 
-save(mn_data, file = 'mn_pickles_olives_data.RData')
-save(nd_data, file = 'nd_pickles_olives_data.RData')
-save(mo_data, file = 'mo_pickles_olives_data.RData')
-save(dc_data, file = 'dc_pickles_olives_data.RData')
+save(mn_data, file = 'mn_pickles_olives_clean.RData')
+save(nd_data, file = 'nd_pickles_olives_clean.RData')
+save(mo_data, file = 'mo_pickles_olives_clean.RData')
+save(dc_data, file = 'dc_pickles_olives_clean.RData')
 ```
