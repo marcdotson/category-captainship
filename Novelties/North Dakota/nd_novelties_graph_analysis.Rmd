@@ -1,11 +1,9 @@
 ---
-title: "North Dakota Novelties"
-output: word_document
+title: "North Dakota Novelties Graph Analysis"
+output: github_document
 ---
 
-
 Load library and increase memory limit.
-
 ```{r}
 library(cowplot)
 library(plyr)
@@ -16,21 +14,31 @@ library(tsoutliers)
 library(forecast)
 memory.limit(size = 50000)
 ```
-
-
-Load data file 'main_manuf_sales'.
-
+Load in the data. Read in `brands` file which contains the parent companies of all brands listed in `full_11_12_13`.
 ```{r}
-load("main_manuf_sales.RData")
+load("nd_novel_clean.RData")
+brands <- read_csv("novelties_brands.csv")
 ```
-
-
-Create 'retailer_weekly', which is filtered for retailers in North Dakota, grouped by retailer code, brand_name, and week_end, creating weekly sales
-and average prices by manufacturer within retailer. 'ret_codes' contains each unique retailer code. 
-The 'for' loop goes over each unique retailer code and graphs the weekly sales by manufacturer for each retailer code. It also plots the average
+Create `uni_novs` and `nestle_novs` which contain the brands owned by Unilever and Nestle. Create tbl `main_manuf_sales` which contains movement data for the brands owned by Neslte, Unilever, and private label. Create a new variable `actual_manuf` which denotes ownership. This allows for sales across different brands to be aggregated later to sales by manufacturer.
+```{r}
+uni_novs <- brands %>%
+  filter(Manuf == "Unilever")
+nestle_novs <- brands %>%
+  filter(Manuf %in% c("Nestle", "Nestle/General Mills"))
+main_manuf_sales <- full_11_12_13 %>%
+  filter(manuf_name %in% c("BEN", "POP", "GOO", "KLO", "BRE", "FUD", "CHO", "CRE", "MAG", "YOS", "FRU", "TAL", "DRE", "EDY", "NES", "HAA", 
+                           "SKI", "ESK", "CAR", "(IC", "THE", "CTL") | brand_descr %in% c("THE SKINNY COW", "THE SKINNY COW SKINNY DIPPERS")) %>%
+  mutate(actual_manuf = ifelse(manuf_name == "BEN", "UNI", ifelse(manuf_name == "POP", "UNI", ifelse(manuf_name == "GOO", "UNI", 
+                        ifelse(manuf_name == "KLO", "UNI", ifelse(manuf_name == "BRE", "UNI", ifelse(manuf_name == "FUD", "UNI", 
+                        ifelse(manuf_name == "CHO", "UNI", ifelse(manuf_name == "CRE", "UNI", ifelse(manuf_name == "MAG", "UNI", 
+                        ifelse(manuf_name == "YOS", "UNI", ifelse(manuf_name == "FRU", "UNI", ifelse(manuf_name == "TAL", "UNI", 
+                        ifelse(manuf_name == "DRE", "NES", ifelse(manuf_name == "EDY", "NES", ifelse(manuf_name == "NES", "NES",
+                        ifelse(manuf_name == "HAA", "NES", ifelse(manuf_name == "SKI", "NES", ifelse(manuf_name == "ESK", "NES", 
+                        ifelse(manuf_name == "CAR", "NES", ifelse(manuf_name == "(IC", "NES", ifelse(manuf_name == "THE", "NES", "CTL"))))))))))))))))))))))
+```
+Create 'retailer_weekly', which is filtered for retailers in North Dakota, grouped by retailer code, brand_name, and week_end, creating weekly sales and average prices by manufacturer within retailer. 'ret_codes' contains each unique retailer code. The 'for' loop goes over each unique retailer code and graphs the weekly sales by manufacturer for each retailer code. It also plots the average
 weekly price by manufacturer by retailer. It places these graphs next to each other for easy comparison. There is a verticle line at the 
 approximate CC implementation date. Each graph includes year specific regression lines.
-
 ```{r}
 retailer_weekly <- main_manuf_sales %>%
   filter(fips_state_descr == "ND") %>%
