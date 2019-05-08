@@ -1,7 +1,7 @@
 ---
-title: "nd_spread_jams"
+title: "North Dakota Spread and Jam Graph Analysis"
 author: "Cameron Bale + Samuel Sorensen"
-output: word_document
+output: github_document
 ---
 
 Install Packages
@@ -16,7 +16,6 @@ install.packages("purrr")
 install.packages("plyr")
 install.packages("cowplot")
 ```
-
 Load library and increase memory limit
 ```{r results='hide'}
 library(cowplot)
@@ -28,17 +27,24 @@ library(tsoutliers)
 library(forecast)
 memory.limit(size = 50000)
 ```
-
-Load 'main_manuf_sales' file which contains the movement file data for the Captain,
-Validator, and Private Label.
+Load North Dakota cleaned spread and jams data.
 ```{r}
-load("main_manuf_sales.RData")
+load('nd_spreads_jams_clean.RData')
+```
+Create tbl `main_manuf_sales` which contains movement data for the brands owned by Smucker's, Welch's, and private label. Create a new variable `actual_manuf` which denotes whether Smucker's, Welch's, or private label own a particular brand. This allows for sales across different brands to be aggregated later to sales by manufacturer.
+```{r}
+main_manuf_sales <- full_11_12_13 %>% 
+  filter(manuf_name %in% c("SMU","SAN","R W", "DIC", "KIN", "CRO", "WEL", "CTL")) %>% 
+  mutate(actual_manuf = if_else(manuf_name == "SMU","SMU",
+                        if_else(manuf_name == "SAN", "SMU", 
+                        if_else(manuf_name == "R W", "SMU", 
+                        if_else(manuf_name == "DIC", "SMU",
+                        if_else(manuf_name == "KIN", "SMU", 
+                        if_else(manuf_name == "CRO", "SMU",
+                        if_else(manuf_name == "WEL", "WEL","CTL"))))))))
 ```
 
-Create 'retailer_weekly', which is filtered for retailers in Minnesota, grouped by retailer code, brand_name, and week_end, creating weekly sales
-and average prices by manufacturer within retailer. 'ret_codes' contains each unique retailer code. 
-The 'for' loop goes over each unique retailer code and graphs the weekly sales by manufacturer for each retailer code. It also plots the average
-weekly price by manufacturer by retailer. It places these graphs next to each other for easy comparison. There is a verticle line at the 
+Create 'retailer_weekly', which is filtered for retailers in Minnesota, grouped by retailer code, brand_name, and week_end, creating weekly sales and average prices by manufacturer within retailer. 'ret_codes' contains each unique retailer code. The 'for' loop goes over each unique retailer code and graphs the weekly sales by manufacturer for each retailer code. It also plots the average weekly price by manufacturer by retailer. It places these graphs next to each other for easy comparison. There is a verticle line at the 
 approximate CC implementation date. Each graph includes year specific regression lines.
 
 ```{r}
