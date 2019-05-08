@@ -2,7 +2,7 @@
 title: "UPC Analysis for Peanut Butter"
 author: "Cameron Bale"
 date: "August 13, 2018"
-output: word_document
+output: github_document
 ---
 
 
