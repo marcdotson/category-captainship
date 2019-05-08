@@ -16,9 +16,9 @@ library(tsoutliers)
 library(forecast)
 memory.limit(size = 50000)
 ```
-Load minnesota data.
+Load DC data.
 ```{r}
-load('mn_pickles_olives_clean.RData')
+load('dc_pickles_olives_clean.RData')
 ```
 Create `tbl`, `main_manuf_sales` which contains movement data for the brands owned by Musco, Pinnacle, and private label. Create a new variable `actual_manuf` which denotes ownership by either pinnacle, private label, or musco. This allows for sales across different brands to be aggregated later to sales by manufacturer.
 ```{r}
