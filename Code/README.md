@@ -13,7 +13,12 @@ The code loads in the cleaned data sets created by the data cleaning markdowns. 
 The code loads in the cleaned data set for the state. 
 
 
+## UPC Chart Markdowns
+#### These files create heat charts for upc sales and prices across the four states for each category. 
 
+
+## Errors
+#### The following are errors we have run into while writing the code and potential ways to fix them. 
 
 
 
