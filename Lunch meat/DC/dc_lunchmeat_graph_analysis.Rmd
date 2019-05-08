@@ -1,12 +1,11 @@
 ---
-title: "DC Lunchmeat"
+title: "DC Lunchmeat Graph Analysis"
 author: "Cameron Bale"
 date: "August 13, 2018"
-output: word_document
+output: github_document
 ---
 
 Load library and increase memory limit.
-
 ```{r}
 library(cowplot)
 library(plyr)
@@ -17,22 +16,27 @@ library(tsoutliers)
 library(forecast)
 memory.limit(size = 50000)
 ```
-
-
-Load 'main_manuf_sales' data.
-
+Load the DC lunch meat data. Read in `brands` file which contains the parent companies of all brands listed in `dc_data`. 
 ```{r}
-load('main_manuf_sales.RData')
+load("dc_lunchmeat_clean.RData")
+brands <- read_csv("Lunchmeat Brands - Sheet1.csv")
 ```
-
-
-Create 'retailer_weekly', which is filtered for retailers in DC, grouped by retailer code, brand_name, and week_end, creating weekly sales
-and average prices by manufacturer within retailer. 'ret_codes' contains each unique retailer code. 
-The 'for' loop goes over each unique retailer code and graphs the weekly sales by manufacturer for each retailer code. It also plots the average
-weekly price by manufacturer by retailer. It places these graphs next to each other for easy comparison. There is a verticle line at the 
+Create `oscar_mayer` and `sara_lee` which contain the brands owned by Oscar Mayer and Sara lee. Create tbl `main_manuf_sales` which contains movement data for the brands owned by Oscar Mayer, Sara Lee, and Private label. Create a new variable `actual_manuf` which denotes ownership by either Oscar mayer, Sara Lee, or Private Label.This allows for sales across different brands to be aggregated later to sales by manufacturer.
+```{r}
+oscar_mayer <- brands %>%
+  filter(Manuf == "Oscar Mayer")
+sara_lee <- brands %>%
+  filter(Manuf == "Sara Lee")
+main_manuf_sales <- full_11_12_13 %>%
+  filter(manuf_name %in% c("SAR", "OSC", "CTL") | brand_descr %in% c("HILLSHIRE FARM", "HILLSHIRE FARM GOURMET CREATIN", 
+                                                                     "HILLSHIRE FARM DELI SELECT", "HILLSHIRE FARM DELI CARVERS", 
+                                                                     "HILLSHIRE FARM LIT'L WIENERS", "HILLSHIRE FARM LIT'L SMOKIES",
+                                                                     "HILLSHIRE FARM LIT'L POLSKAS", "HILLSHIRE FARM LIT'L BEEF FRNK",
+                                                                     "HILLSHIRE FARM YARD-O-BEEF")) %>%
+  mutate(actual_manuf = if_else(manuf_name == "OSC", "OSCMAYER", if_else(manuf_name == "CTL", "CTL", "SARALEE")))
+```
+Create `retailer_weekly`, which is filtered for retailers in DC, grouped by retailer code, brand_name, and week_end, creating weekly sales and average prices by manufacturer within retailer. `ret_codes` contains each unique retailer code. The 'for' loop goes over each unique retailer code and graphs the weekly sales by manufacturer for each retailer code. It also plots the average weekly price by manufacturer by retailer. It places these graphs next to each other for easy comparison. There is a verticle line at the 
 approximate CC implementation date. Each graph includes year specific regression lines.
-
-
 ```{r}
 retailer_weekly <- main_manuf_sales %>%
   filter(fips_state_descr == "DC") %>%
