@@ -1,0 +1,224 @@
+---
+title: "Generating Distributions of P-Values and Effects by Store, Manufacturer, and Retailer"
+output: github_document
+---
+
+Load packages.
+```{r}
+#install.packages(c('tidyverse', 'microsynth', 'infer'))
+library(infer)
+library(microsynth)
+library(tidyverse)
+```
+
+Create simulated sales data by a random draw from a uniform distribution. Each sales period after is the sum of the
+previous period plus some random noise drawn from a normal distribution with `mean = 10` and `sd = 5`.
+```{r}
+store_sales <- c()
+
+for(i in 1:15) {
+  
+  sales <- vector(mode = 'numeric', length = 160)
+
+  for(i in seq_along(sales)) {
+  
+    if(i == 1) {
+    
+      sales[i] <- runif(n = 1, min = 100, max = 1000)
+    
+    } else {
+    
+      sales[i] <- sales[i - 1] + rnorm(n = 1, mean = 10, sd = 5)
+    
+    }
+    
+  }
+  
+  store_sales <- c(store_sales, sales)
+  
+}
+```
+
+Create `sim_data` containing the variables:
+
+* `store_code_uc` - Store identifier.
+* `retailer_code` - Retailer identifier. Each store belongs to a retailer and each retailer owns multiple stores.
+* `n_week_end` - Time variable in numeric format.
+* `sales` - Sales variable from previous chunk.
+```{r}
+sim_data <- tibble(
+  store_code_uc = sort(rep(1:15, times = 160)),
+  retailer_code = ifelse(store_code_uc <= 5, 1, 
+                  ifelse(store_code_uc <= 10, 2, 3)),
+  n_week_end = rep(1:160, times = 15),
+  sales = store_sales)
+```
+
+Use the `rep_sample_n` function to replicate `sim_data` three times and assign each replicate to a manufacturer. 
+Add a 25% increase to the sales variable for retailer 1 in the post-treatment time period. Add a variable `treat` 
+to identify the treated retailer and `post` to identify the post-treatment time period.
+```{r}
+sim_data <- sim_data %>%
+  rep_sample_n(size = nrow(.), reps = 3) %>%
+  mutate(manuf = replicate) %>%
+  ungroup() %>%
+  select(retailer_code, store_code_uc, manuf, n_week_end, sales) %>%
+  arrange(retailer_code, store_code_uc, manuf, n_week_end)
+
+sim_data <- sim_data %>%
+  mutate(sales = ifelse(retailer_code == 1 & n_week_end > 80, sales * 1.25, sales),
+         treat = ifelse(retailer_code == 1, 1, 0),
+         post = ifelse(n_week_end > 80, 1, 0))
+```
+
+Create a loop that creates a synthetic control for each manufacturer in each store in each retailer. Collect the p values from each synthetic control and create a distribution of p values across stores by retailer. 
+```{r message=FALSE, warning=FALSE}
+ret_codes <- unique(sim_data$retailer_code)
+msynth_results <- tibble()
+
+for (i in seq_along(ret_codes)) {
+  msynth_pvals <- c()
+  msynth_effects <- c()
+  t_stores <- sim_data %>% filter(retailer_code==ret_codes[i]) 
+  c_stores <- sim_data %>% filter(retailer_code!=ret_codes[i]) %>% mutate(type=0) 
+  t_store_codes <- unique(t_stores$store_code_uc)
+  for (j in seq_along(t_store_codes)) {
+    store <- t_stores %>% filter(store_code_uc==t_store_codes[j]) %>% 
+      mutate(type = ifelse(n_week_end > 80, 1, 0))
+    store_data <- bind_rows(store, c_stores)
+    manufs <- unique(store_data$manuf)
+    for (k in seq_along(manufs)) {
+      manuf_data <- store_data %>%
+        filter(manuf == manufs[k])
+      msynth <- microsynth(data = as.data.frame(manuf_data),
+                           idvar = "store_code_uc",
+                           intvar = "type",
+                           timevar = "n_week_end",
+                           start.pre = 1, 
+                           end.pre = 80, 
+                           end.post = 160,
+                           match.out = "sales",
+                           match.covar = "sales",
+                           result.var="sales", 
+                           omnibus.var="sales",
+                           test="twosided")
+  
+  msynth_pvals <- c(msynth_pvals, msynth[[2]]$`160`[1,4])
+  msynth_effects <- c(msynth_effects, msynth[[2]]$`160`[1,3])
+  
+    }
+  }
+  
+  loop_results <- tibble(
+    pval = msynth_pvals,
+    effect = msynth_effects,
+    retailer = ret_codes[i]
+  )
+  
+  msynth_results <- msynth_results %>%
+    bind_rows(loop_results)
+
+}
+```
+
+Plotting distributions of p-values.
+```{r}
+msynth_results %>%
+  ggplot(aes(x = pval)) +
+  geom_histogram() +
+  facet_wrap(~retailer) +
+  labs(x = 'P-Value',
+       y = 'Count',
+       title = 'P-Values Calculated at Manufacturer Level for Retailers in Simulated Data',
+       subtitle = 'Treated = Retailer 1')
+```
+
+Plotting distributions of treatment effects.
+```{r}
+msynth_results %>%
+  ggplot(aes(x = effect)) +
+  geom_histogram() +
+  facet_wrap(~retailer) +
+  labs(x = 'Treatment Effect',
+       y = 'Count',
+       title = 'Treatment Effect Calculated at Manufacturer Level for Retailers in Simulated Data',
+       subtitle = 'Treated = Retailer 1')
+```
+
+Run a microsynth loop where each retailer is paired with each other retailer. The treated retailer that causes the pairs to be significant/positive and the control retailer that causes the pairs to be significant/negative should be the treated retailer. Aggregate `sim_data` across manufacturers to do synthetic control at the store level. 
+```{r warning=FALSE, message=FALSE}
+ret_code_combo <- as_tibble(expand.grid(treat=ret_codes, control=ret_codes)) %>% filter(treat!=control)
+
+store_sim_data <- sim_data %>% group_by(retailer_code, store_code_uc, n_week_end) %>% summarise(sales=sum(sales))
+
+msynth_results <- tibble()
+loop_results <- tibble()
+
+for (i in 1:6) {
+  msynth_pvals <- c()
+  msynth_effects <- c()
+  loop_rets <- ret_code_combo %>% filter(row_number()==i) %>% as_vector()
+  t_stores <- store_sim_data %>% filter(retailer_code==unname(loop_rets[1])) 
+  c_stores <- store_sim_data %>% filter(retailer_code==unname(loop_rets[2])) %>% mutate(type=0) 
+  t_store_codes <- unique(t_stores$store_code_uc)
+  for (j in seq_along(t_store_codes)) {
+    store <- t_stores %>% filter(store_code_uc==t_store_codes[j]) %>% 
+      mutate(type = ifelse(n_week_end > 80, 1, 0))
+    store_data <- bind_rows(store, c_stores)
+         msynth <- microsynth(data = as.data.frame(store_data),
+                           idvar = "store_code_uc",
+                           intvar = "type",
+                           timevar = "n_week_end",
+                           start.pre = 1, 
+                           end.pre = 80, 
+                           end.post = 160,
+                           match.out = "sales",
+                           match.out.min = "sales",
+                           result.var="sales", 
+                           omnibus.var="sales", 
+                           test="twosided", 
+                           use.survey = FALSE, 
+                           use.backup = TRUE)
+  
+  msynth_pvals <- c(msynth_pvals, msynth[[2]]$`160`[1,4])
+  msynth_effects <- c(msynth_effects, msynth[[2]]$`160`[1,3])
+  
+    }
+  
+  loop_results <- tibble(
+    pval = msynth_pvals,
+    effect = msynth_effects,
+    retailer = paste0(unname(loop_rets[1]), ",", unname(loop_rets[2]))
+  )
+  
+  msynth_results <- msynth_results %>%
+    bind_rows(loop_results)
+
+}
+```
+
+Plot the P-Values for stores across every combination of retailers.
+```{r}
+msynth_results %>%
+  ggplot(aes(x = pval)) +
+  geom_histogram() +
+  facet_wrap(~retailer) +
+  labs(x = 'P-Value',
+       y = 'Count',
+       title = 'P-Values for Retailer Combinations at the Store Level for Simulated Data',
+       subtitle = 'Treated = 1')
+```
+
+Plot the treatment effects for 
+```{r}
+msynth_results %>%
+  ggplot(aes(x = effect)) +
+  geom_histogram() +
+  facet_wrap(~retailer) +
+  labs(x = 'Effect',
+       y = 'Count',
+       title = 'Treatment Effects for Retailer Combinations at Store Level for Simulated Data',
+       subtitle = 'Treated = 1')
+```
+
+
