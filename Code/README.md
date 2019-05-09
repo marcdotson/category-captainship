@@ -19,6 +19,7 @@ The code loads in the cleaned data set for the state.
 
 ## Errors
 #### The following are errors we have run into while writing the code and potential ways to fix them. 
-
+* "Error in value[[3L]](cond) : promise already under evaluation: recursive default argument reference or earlier problems?" : check the number of stores in each retailer. If there is only one store in a retailer, it may be causing this issue. Remove the cases where that retailer acts as a control. 
+* "dum <= dum+1 : missing value where TRUE or FALSE needed" : make sure every unit in the data has an observation for every time period. 
 
 
