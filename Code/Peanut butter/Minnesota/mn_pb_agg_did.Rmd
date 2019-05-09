@@ -1,0 +1,42 @@
+---
+title: "Minnesota, Peanut butter, aggregate diff in diff"
+output: github_document
+---
+
+This initial analysis is performed on the peanut butter data and looks at individual treated store sales compared to
+an aggregate of the sales of the other stores in the market (MO Area). As of now this is only for the sales of 
+captain, validator, and private label between stores. We believe that the treated retailer is !!!!!. 
+
+Install packages and load library.
+```{r, results = 'hide'}
+library(tidyverse)
+library(lubridate)
+```
+
+Load in Minnesota Peanut butter data. 
+```{r}
+load("mn_pb_clean.RData")
+```
+
+Filter the full dataset for data pertaining to the retailers in MN. Display the retailer
+codes in MN.
+```{r}
+treated_stores <- mn_data %>% filter(retailer_code==8) %>% distinct(store_code_uc)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
