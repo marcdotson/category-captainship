@@ -1,0 +1,224 @@
+---
+title: "DC Peanut Butter Synthetic Control"
+output: github_document
+---
+
+Install packages and load library.
+```{r, results = 'hide', message = FALSE}
+#install.packages('tidyverse')
+#install.packages("Synth")
+library(tidyverse)
+library(lubridate)
+library(Synth)
+```
+
+Load in DC peanut butter data.
+```{r}
+load("dc_pb_clean.RData")
+```
+
+Display the retailer codes in DC.
+```{r}
+treated_stores <- dc_data %>% filter(retailer_code==842) %>% distinct(store_code_uc)
+
+control_stores <- dc_data %>% filter(retailer_code!=842) %>% distinct(store_code_uc)
+```
+
+Assign munfacturer for each brand. Organize data by stores and date, add sales across UPCs.  
+```{r}
+dc_data <- dc_data %>%
+  mutate(manuf_name = substr(dc_data$brand_descr, 1, 3)) %>%
+  filter(manuf_name %in% c('SKI', "JIF", "SMU", "SIM", "SAN", "ADA", "CTL")) %>%
+  mutate(actual_manuf = if_else(manuf_name == 'CTL', 'CTL',
+                        if_else(manuf_name == 'SKI', 'UNI', 'SMU'))) %>%
+  mutate(store_code_uc=as.numeric(store_code_uc))
+
+dc_data <- dc_data %>% group_by(store_code_uc, week_end) %>% summarize(sales=sum(sales)) %>%
+  arrange(store_code_uc, week_end) 
+
+dc_data <- as.data.frame(dc_data)
+```
+
+Check store codes to see how many weeks they have. Stores with less than 157 weeks of observations are dropped from the data. Then we arrange by `store_code_uc` and `week_end`, then create a `n_week_end` variable to represent the date numerically.
+```{r}
+weeks <- unique(dc_data$week_end)
+
+codes <- unique(dc_data$store_code_uc)
+
+drops <- c()
+
+for (i in seq_along(codes)) {
+  
+  single_store <- dc_data %>% filter(store_code_uc==codes[i])
+  
+  single_store_vec <- unique(single_store$week_end)
+  
+  if (length(single_store_vec) < length(weeks)) {
+    
+    drops <- c(drops, codes[i])
+    
+  }
+
+}
+
+dc_data <- dc_data %>% filter(!store_code_uc %in% drops) %>% arrange(store_code_uc, week_end) %>%
+  mutate(n_week_end=as.numeric(week_end))
+
+control_stores <- control_stores %>% filter(!store_code_uc %in% drops) 
+
+control_stores <- control_stores %>% arrange(store_code_uc)
+```
+
+Use data prep to create weights for synthetic control.
+```{r, fig.width=8, fig.height=5}
+dataprep_out <- dataprep(foo=dc_data, predictors="sales", dependent="sales", unit.variable="store_code_uc",
+                         time.variable="n_week_end", treatment.identifier=5133302,
+                         controls.identifier=control_stores$store_code_uc,
+                         time.predictors.prior=seq(14975, 15535, by = 7), time.optimize.ssr=seq(14975, 15535, by = 7),
+                         time.plot=seq(14975, 16067, by = 7))
+
+synth_out <-synth(dataprep_out)
+```
+
+Plot the synthetic control against the treated store over time. 
+```{r fig.width = 8, fig.height = 7}
+path.plot(dataprep.res = dataprep_out, synth.res = synth_out, Xlab = c('Time'), Ylab = c('Sales'), tr.intake = 15535,
+          Main = 'Synthetic Control and Treated Store Sales')
+```
+
+Plot the difference between the treated and synthetic control sales over time. 
+```{r, fig.width=8, fig.height=7}
+gaps.plot(dataprep.res = dataprep_out, synth.res = synth_out, Ylab = 'Difference', Xlab = 'Weeks', tr.intake = 15535,
+          Main = 'Difference Between Treated and Synthetic Sales (Treated - Synthetic)')
+```
+
+```{r}
+synth_tables <- synth.tab(synth.res = synth_out, dataprep.res = dataprep_out)
+synth_tables$tab.w
+```
+
+```{r}
+synth_tables$tab.pred
+```
+
+Create a vector of control sales and weights determined by the data prep. Creat w_ctrl, which is a vector of the weighted control sales. Create a vector of treated sales. Create a tibble with the treated sales and weighted control sales for the pre period. 
+```{r}
+controls <- dataprep_out$Z0
+weights <- synth_tables$tab.w$w.weights
+colnames(controls) <- NULL
+rownames(controls) <- NULL
+w_ctrl <- as.vector(weights %*% t(controls), mode = 'numeric')
+treat <- as.vector(dataprep_out$Z1)
+weighted_data <- tibble(control = w_ctrl,
+                           treated = treat,
+                           time = 1:length(w_ctrl))
+```
+
+```{r}
+weighted_data <- weighted_data %>%
+  gather(key = 'Store', value = 'Sales', -time)
+```
+
+Create a plot that compares the weighted control sales to the treated sales for the pre period. 
+```{r}
+weighted_data %>%
+  ggplot(aes(x = time, y = Sales, col = Store)) +
+  geom_line() +
+  labs(x = 'Time',
+       y = 'Total Sales',
+       title = 'Sales for Treated Store and Synthetic Control Store Pre Treatment')
+
+```
+
+Add the weights for the controls to the dc data frame. Assign a weight of one to the treated store sales. Multiply the weights by the control store sales and sum the sales across the control stores by week. Create a dataframe that has the dates and sales by treated and control store. Add a variable "post" which is a binary variable reporting whether the sales occured pre or post treatment. The implementation date is 7/16/2012. 
+```{r}
+weight_tibble <- tibble(weight=synth_tables$tab.w$w.weights, store_code_uc=synth_tables$tab.w$unit.names)
+
+dc_data <- dc_data %>% left_join(weight_tibble, "store_code_uc")
+
+dc_data[is.na(dc_data)] <- 1
+
+dc_data <- dc_data %>% mutate(w_sales=sales*weight) %>% 
+  mutate(type=if_else(store_code_uc==5133302, 1, 0))
+
+dc_controls <- filter(dc_data, type==0)
+
+dc_controls <- aggregate(dc_controls$w_sales, by=list(dc_controls$week_end),sum)
+
+dc_treats <- filter(dc_data, type==1)
+
+names(dc_controls) <- c("week_end", "w_sales")
+
+dc_controls <- dc_controls %>% mutate(type=0)
+
+dc_treats <- subset(dc_treats, select=c("week_end", "w_sales", "type"))
+
+reg_data <- bind_rows(dc_treats, dc_controls) %>% mutate(post=if_else(week_end > as.Date("2012-07-16"), 1, 0))
+
+names(reg_data) <- c("week_end", "sales", "treat", "post")
+
+```
+
+Run the diff in diff regression. Create a plot for the synthetic control and treated store pre and post category captianship. 
+```{r}
+did_reg <- lm(sales ~ treat + post + treat * post, data = reg_data)
+
+summary(did_reg)
+
+pre_cc <- reg_data %>%
+        filter(week_end <= as.Date("2012-07-16"))
+  
+post_cc <- reg_data %>%
+        filter(week_end > as.Date("2012-07-16"))
+
+did_plot <- ggplot(reg_data, aes(week_end, sales, col = factor(treat))) + 
+      geom_line() +
+      geom_smooth(aes(week_end, sales), data = pre_cc, method = 'lm', se = FALSE) +
+      geom_smooth(aes(week_end, sales), data = post_cc, method = 'lm', se = FALSE) +
+      geom_vline(xintercept = as.numeric(as.Date("2012-07-16"))) +
+      ggtitle("Synthetic control Diff in Diff for DC Peanut Butter") +labs(x="Time", y="Sales")
+
+print(did_plot)
+
+```
+
+Installl and load microsynth. Create the microsynth weights, plots and results. Save the output as msynth_out. Create a vector of weights called m_weights.  
+```{r, fig.width=9, fig.height=4}
+#install.packages("microsynth")
+library(microsynth)
+
+msynth <- microsynth(dc_data, 
+                   idvar="store_code_uc", timevar="n_week_end", intvar="type", 
+                   start.pre=14975, end.pre=15535, end.post=16067, 
+                   match.out="sales", result.var="sales", omnibus.var="sales", plot.var="sales",
+                   test="lower", sep = TRUE)
+
+summary(msynth)
+
+msynth_out <- msynth$w
+
+m_weights <- msynth_out$Weights
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
