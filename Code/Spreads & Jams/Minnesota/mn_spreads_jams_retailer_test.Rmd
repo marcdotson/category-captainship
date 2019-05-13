@@ -1,0 +1,17 @@
+---
+title: "Minnesota Spreads/Jams Retailer Analysis"
+output: github_document
+---
+
+Load packages.
+```{r}
+library(tidyverse)
+```
+
+Plot data.
+```{r}
+mtcars %>%
+  ggplot(aes(x = cyl, y = mpg)) +
+  geom_point()
+```
+
