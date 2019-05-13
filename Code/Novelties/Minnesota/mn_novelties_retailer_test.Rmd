@@ -268,7 +268,7 @@ msynth_results %>%
   ggplot(aes(x = effect)) +
   geom_histogram() +
   geom_vline(xintercept = 0, col = 'blue') +
-  facet_wrap(~retailer) + labs(x="Treatment Effect", y="Count", title="Store Level Treatment Effects for MN Novelties")
+  facet_wrap(~retailer) + labs(x="Treatment Effect", y="Count", title="Store Level Significant Effects for MN Novelties")
 ```
 
 Check for retailers that only have one store, as this produces as error in Microsynth.
