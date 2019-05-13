@@ -14,7 +14,7 @@ library(lubridate)
 
 Load in the data for Minnesota ice cream category.  
 ```{r}
-load("mn_ice_cream_clean.RData")
+load("../../../../mn_ice_cream_clean.RData")
 ```
 
 Assign the manfacturer (Private Label, Unilever, Nestle) for each brand. Convert store code to be a numeric. Organize data by retailer, stores and date, then sum sales across UPCs, giving us weekly sales for each manufacturer in each
@@ -268,7 +268,7 @@ msynth_results %>%
   ggplot(aes(x = effect)) +
   geom_histogram() +
   geom_vline(xintercept = 0, col = 'blue') +
-  facet_wrap(~retailer) + labs(x="Treatment Effect", y="Count", title="Store Level Treatment Effects for MN Ice Cream")
+  facet_wrap(~retailer) + labs(x="Treatment Effect", y="Count", title="Store Level Treatment Effects for MN Ice Cream", subtitle = 'Statistically Significant Effects')
 ```
 
 Check for retailers that only have one store, as this produces as error in Microsynth.
