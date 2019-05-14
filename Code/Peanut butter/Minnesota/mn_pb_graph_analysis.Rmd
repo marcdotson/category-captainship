@@ -1,6 +1,6 @@
 ---
 title: "Minnesota Peanut Butter Graph Analysis"
-output: word_document
+output: github_document
 ---
 
 Install packages.
