@@ -19,7 +19,7 @@ Load in the data for Minnesota ice cream category.
 load("../../../../mn_can_soup_clean.RData")
 ```
 
-Assign the manfacturer (Private Label, Unilever, Nestle) for each brand. Convert store code to be a numeric. Organize data by retailer, stores and date, then sum sales across UPCs, giving us weekly sales for each manufacturer in each
+Assign the manfacturer (Private Label, Campbells, General Mills) for each brand. Convert store code to be a numeric. Organize data by retailer, stores and date, then sum sales across UPCs, giving us weekly sales for each manufacturer in each
 store in each retailer.
 ```{r}
 mn_data <- mn_data %>%
