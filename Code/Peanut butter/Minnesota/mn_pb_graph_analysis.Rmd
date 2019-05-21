@@ -44,8 +44,9 @@ smuck_pb <- brands %>%
   filter(Manuf == "Smucker")
 
 main_manuf_sales <- full_11_12_13 %>%
-  filter(manuf_name %in% c("JIF", "SMU", "SIM", "SAN", "ADA", "CTL")) %>%
-  mutate(actual_manuf = if_else(manuf_name == "CTL", "CTL", "SMU"))
+  filter(manuf_name %in% c('SKI', "JIF", "SMU", "SIM", "SAN", "ADA", "CTL")) %>%
+  mutate(actual_manuf = if_else(manuf_name == 'CTL', 'CTL',
+                        if_else(manuf_name == 'SKI', 'UNI', 'SMU')))
 ```
 
 Create `retailer_weekly`, which is filtered for retailers in Minnesota, grouped by retailer code, brand_name, and week_end, creating weekly sales and average prices by manufacturer within retailer. `ret_codes` contains each unique retailer code. The 'for' loop goes over each unique retailer code and graphs the weekly sales by manufacturer for each retailer code. It also plots the average weekly price by manufacturer by retailer. It places these graphs next to each other for easy comparison. There is a verticle line at the approximate CC implementation date. Each graph includes year specific regression lines.
@@ -107,5 +108,4 @@ for (i in seq_along(ret_codes)) {
 Captain : Unilever
 Validator: Smuckers
 
-notes: Skippy was purchased from Unilever by Hormel Foods in 2013. Also, I couldn't find any brands that were actually owned by
-Unilever that had any sales show up in the movement file.
+notes: Skippy was purchased from Unilever by Hormel Foods in 2013. Also, I couldn't find any brands that were actually owned by Unilever that had any sales show up in the movement file.
