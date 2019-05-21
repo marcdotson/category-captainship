@@ -1,5 +1,5 @@
 ---
-title: "Minnesota Canned Soup Market Share Retailer Test"
+title: "Minnesota Lunchmeat Market Share Retailer Test"
 output: github_document
 ---
 
@@ -14,7 +14,7 @@ library(lubridate)
 
 Load in the data for Minnesota canned soup category.  
 ```{r}
-load("../../../../mn_can_soup_clean.RData")
+load("../../../../mn_lunchmeat_clean.RData")
 ```
 
 ```{r}
@@ -30,11 +30,11 @@ mn_data <- mn_data %>%
   ungroup()
 ```
 
-Assign the manfacturer (Private Label, Campbells) for each brand. Convert store code to be a numeric. Organize data by retailer, stores and date, then sum sales across UPCs, giving us weekly sales for each manufacturer in each store in each retailer.
+Assign the manfacturer (Private Label, Oscar Mayer) for each brand. Convert store code to be a numeric. Organize data by retailer, stores and date, then sum sales across UPCs, giving us weekly sales for each manufacturer in each store in each retailer.
 ```{r}
 mn_data <- mn_data %>%
-  filter(manuf_name %in% c("CAM", "CTL")) %>%
-  mutate(actual_manuf = if_else(manuf_name == "CAM", "campbells", 'private_label')) %>%
+  filter(manuf_name %in% c("OSC", "CTL")) %>%
+  mutate(actual_manuf = if_else(manuf_name == "OSC", "oscmayer", 'private_label')) %>%
   mutate(store_code_uc = as.numeric(store_code_uc))
 ```
 
@@ -106,7 +106,7 @@ for (i in seq_along(store_codes)) {
 }
 ```
 
-Create a vector of the unique retailer codes in MN Data. Create a loop that creates a synthetic control for each manufacturer in each store for each retailer. Collect the p values and treatment effects from each synthetic control. The target reset date was 07/30/2012, we chose the implementation date for the week after (since 07/30 isn't an option), which was 08/04/2012.
+Create a vector of the unique retailer codes in MN Data. Create a loop that creates a synthetic control for each manufacturer in each store for each retailer. Collect the p values and treatment effects from each synthetic control. The target reset date was 07/16/2012, we chose the implementation date for the week after (since 07/16 isn't an option), which was 07/21/2012.
 ```{r message=FALSE, warning=FALSE}
 ret_codes <- unique(mn_cleaned_manufs$retailer_code)
 msynth_results <- tibble()
@@ -147,7 +147,7 @@ for (i in seq_along(ret_codes)) {
                            intvar = "type",
                            timevar = "n_week_end",
                            start.pre = 14975, 
-                           end.pre = 15556, 
+                           end.pre = 15542, 
                            end.post = 16067,
                            match.out = "market_share",
                            match.covar = "market_share",
@@ -182,7 +182,7 @@ msynth_results %>%
   ggplot(aes(x = effect)) +
   geom_histogram() +
   geom_vline(xintercept = 0, col = 'blue') +
-  facet_wrap(~retailer) + labs(x="Treatment Effect", y="Count", title="Manufacturer Level Significant Treatment Effects: MN Canned Soup", subtitle = "Market Share")
+  facet_wrap(~retailer) + labs(x="Treatment Effect", y="Count", title="Manufacturer Level Significant Treatment Effects: MN Lunchmeat", subtitle = "Market Share")
 ```
 
 Check for retailers that only have one store, as this produces as error in Microsynth.
@@ -243,7 +243,7 @@ for (i in 1:nrow(ret_code_combo)) {
                            intvar = "type",
                            timevar = "n_week_end",
                            start.pre = 14975, 
-                           end.pre = 15556, 
+                           end.pre = 15542, 
                            end.post = 16067,
                            match.out = "market_share",
                            match.out.min = "market_share",
@@ -282,14 +282,6 @@ msynth_results %>%
   facet_wrap(~retailer) +
   labs(x = 'Effect',
        y = 'Count',
-       title = 'Significant Treatment Effects for Retailer Combinations at Manufacturer Level: MN Canned Soup',
+       title = 'Significant Treatment Effects for Retailer Combinations at Manufacturer Level: MN Lunchmeat',
        subtitle = 'Market Share')
 ```
-
-
-
-
-
-
-
-
