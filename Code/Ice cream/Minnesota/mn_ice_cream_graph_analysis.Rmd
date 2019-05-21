@@ -1,6 +1,6 @@
 ---
 title: "Minnesota Ice Cream Graph Analysis"
-output: word_document
+output: github_document
 ---
 
 Note: This document contains all the code used to produce the graphs for the ice cream category in Minnesota. 
