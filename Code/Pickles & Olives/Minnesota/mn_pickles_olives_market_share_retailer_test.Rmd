@@ -1,5 +1,5 @@
 ---
-title: "Minnesota Canned Soup Market Share Retailer Test"
+title: "Minnesota Pickles and Olives Market Share Retailer Test"
 output: github_document
 ---
 
@@ -14,27 +14,30 @@ library(lubridate)
 
 Load in the data for Minnesota canned soup category.  
 ```{r}
-load(here::here("..", "mn_can_soup_clean.RData"))
+load(here::here("..", "mn_pickles_olives_clean.RData"))
 ```
 
+Create `total_sales` which contains total weekly sales by store. In `mn_data`, create 
+weekly sales by manufacturer by store, join with `total_sales`, and create the variable
+`market_share` by dividing weekly manufacturer sales by weekly total store sales. 
 ```{r}
 total_sales <- mn_data %>%
   group_by(retailer_code, store_code_uc, week_end) %>%
   summarize(total_sales = sum(sales))
 
 mn_data <- mn_data %>%
-  group_by(retailer_code, store_code_uc, week_end, manuf_name) %>%
+  group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%
   summarize(sales = sum(sales)) %>%
   left_join(total_sales, by = c('retailer_code', 'store_code_uc', 'week_end')) %>%
   mutate(market_share = sales/total_sales) %>%
   ungroup()
 ```
 
-Assign the manfacturer (Private Label, Campbells) for each brand. Convert store code to be a numeric. Organize data by retailer, stores and date, then sum sales across UPCs, giving us weekly sales for each manufacturer in each store in each retailer.
+Assign the manfacturer (Private Label, Pinnacle) for each brand. Convert store code to be a numeric.
 ```{r}
 mn_data <- mn_data %>%
-  filter(manuf_name %in% c("CAM", "CTL")) %>%
-  mutate(actual_manuf = if_else(manuf_name == "CAM", "campbells", 'private_label')) %>%
+  filter(manuf_name %in% c("VLA", "NAL", "FAR", "CTL")) %>%
+  mutate(actual_manuf = if_else(manuf_name == "CTL", "private_label", 'pinnacle')) %>%
   mutate(store_code_uc = as.numeric(store_code_uc))
 ```
 
@@ -106,7 +109,7 @@ for (i in seq_along(store_codes)) {
 }
 ```
 
-Create a vector of the unique retailer codes in MN Data. Create a loop that creates a synthetic control for each manufacturer in each store for each retailer. Collect the p values and treatment effects from each synthetic control. The target reset date was 07/30/2012, we chose the implementation date for the week after (since 07/30 isn't an option), which was 08/04/2012.
+Create a vector of the unique retailer codes in MN Data. Create a loop that creates a synthetic control for each manufacturer in each store for each retailer. Collect the p values and treatment effects from each synthetic control. The target reset date was 10/08/2012, we chose the implementation date for the week after (since 10/08 isn't an option), which was 10/13/2012.
 ```{r message=FALSE, warning=FALSE}
 ret_codes <- unique(mn_cleaned_manufs$retailer_code)
 msynth_results <- tibble()
@@ -147,7 +150,7 @@ for (i in seq_along(ret_codes)) {
                            intvar = "type",
                            timevar = "n_week_end",
                            start.pre = 14975, 
-                           end.pre = 15556, 
+                           end.pre = 15626, 
                            end.post = 16067,
                            match.out = "market_share",
                            match.covar = "market_share",
@@ -182,7 +185,7 @@ msynth_results %>%
   ggplot(aes(x = effect)) +
   geom_histogram() +
   geom_vline(xintercept = 0, col = 'blue') +
-  facet_wrap(~retailer) + labs(x="Treatment Effect", y="Count", title="Manufacturer Level Significant Treatment Effects: MN Canned Soup", subtitle = "Market Share")
+  facet_wrap(~retailer) + labs(x="Treatment Effect", y="Count", title="Manufacturer Level Significant Treatment Effects: MN Pickles and Olives", subtitle = "Market Share")
 ```
 
 Check for retailers that only have one store, as this produces as error in Microsynth.
@@ -243,7 +246,7 @@ for (i in 1:nrow(ret_code_combo)) {
                            intvar = "type",
                            timevar = "n_week_end",
                            start.pre = 14975, 
-                           end.pre = 15556, 
+                           end.pre = 15626, 
                            end.post = 16067,
                            match.out = "market_share",
                            match.out.min = "market_share",
@@ -282,14 +285,7 @@ msynth_results %>%
   facet_wrap(~retailer) +
   labs(x = 'Effect',
        y = 'Count',
-       title = 'Significant Treatment Effects for Retailer Combinations at Manufacturer Level: MN Canned Soup',
+       title = 'Significant Treatment Effects for Retailer Combinations at Manufacturer Level: MN Pickles and Olives',
        subtitle = 'Market Share')
 ```
-
-
-
-
-
-
-
 
