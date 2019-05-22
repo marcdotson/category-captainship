@@ -1,0 +1,299 @@
+---
+title: "Minnesota Novelties Market Share Retailer Test"
+output: github_document
+---
+
+Install and load packages. 
+```{r}
+#install.packages(c("tidyverse", "microsynth"))
+
+library(tidyverse)
+library(microsynth)
+library(lubridate)
+```
+
+Load in the data for Minnesota canned soup category.  
+```{r}
+load("../../../../mn_novel_clean.RData")
+```
+
+```{r}
+total_sales <- mn_data %>%
+  group_by(retailer_code, store_code_uc, week_end) %>%
+  summarize(total_sales = sum(sales))
+
+mn_data <- mn_data %>%
+  group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%
+  summarize(sales = sum(sales)) %>%
+  left_join(total_sales, by = c('retailer_code', 'store_code_uc', 'week_end')) %>%
+  mutate(market_share = sales/total_sales) %>%
+  ungroup()
+```
+
+Assign the manfacturer (Private Label, Unilever) for each brand. Convert store code to be a numeric. Organize data by retailer, stores and date, then sum sales across UPCs, giving us weekly sales for each manufacturer in each store in each retailer.
+```{r}
+mn_data <- mn_data %>%
+  filter(manuf_name %in% c("BEN", 
+                           "POP", 
+                           "GOO", 
+                           "KLO", 
+                           "BRE", 
+                           "FUD", 
+                           "CHO", 
+                           "CRE",
+                           "MAG",
+                           "YOS",
+                           "FRU",
+                           "TAL",
+                           "CTL")) %>%
+  mutate(actual_manuf = if_else(manuf_name == "CTL", "private_label", "unilever")) %>%
+  mutate(store_code_uc = as.numeric(store_code_uc))
+```
+
+Check store codes to see how many weeks they have. Stores with less than 157 weeks of observations are dropped from the data. Then we arrange by `store_code_uc` and `week_end`, then create a `n_week_end` variable to represent the date numerically. Change manufacter variable to be numeric. 
+```{r}
+weeks <- unique(mn_data$week_end)
+
+codes <- unique(mn_data$store_code_uc)
+
+drops <- c()
+
+for (i in seq_along(codes)) {
+  
+  single_store <- mn_data %>% filter(store_code_uc==codes[i])
+  
+  single_store_vec <- unique(single_store$week_end)
+  
+  if (length(single_store_vec) < length(weeks)) {
+    
+    drops <- c(drops, codes[i])
+    
+  }
+
+}
+
+mn_data <- mn_data %>% 
+  filter(!store_code_uc %in% drops) %>% 
+  arrange(retailer_code, store_code_uc, week_end) %>%
+  mutate(n_week_end=as.numeric(week_end))
+
+mn_data <- mn_data %>% 
+  mutate(manuf=if_else(actual_manuf=="private_label", 1, 2))
+```
+
+To analyze at the manufacturer level, we need to remove manufacturers that don't have observations in the full time period because it causes an error in Microsynth. This code loops over every store, and for every store it loops over each manufacturer and removes that manufacturer in that store if it doesn't have sales for the full time period.
+```{r}
+manuf_codes <- unique(mn_data$manuf)
+store_codes <- unique(mn_data$store_code_uc)
+mn_cleaned_manufs <- tibble()
+
+for (i in seq_along(store_codes)) {
+  
+  manuf_drops <- c()
+  
+  one_store <- mn_data %>%
+    filter(store_code_uc == store_codes[i])
+  
+  for (j in seq_along(manuf_codes)) {
+    
+    single_manuf <- one_store %>%
+      filter(manuf == manuf_codes[j])
+    
+    manuf_weeks <- unique(single_manuf$week_end)
+    
+    if (length(manuf_weeks) < length(weeks)) {
+      
+      manuf_drops <- c(manuf_drops, manuf_codes[j])
+      
+    }
+    
+  }
+  
+  one_store <- one_store %>%
+    filter(!manuf %in% manuf_drops)
+  
+  mn_cleaned_manufs <- mn_cleaned_manufs %>%
+    bind_rows(one_store)
+  
+}
+```
+
+Create a vector of the unique retailer codes in MN Data. Create a loop that creates a synthetic control for each manufacturer in each store for each retailer. Collect the p values and treatment effects from each synthetic control. The target reset date was 03/26/2012, we chose the implementation date for the week after (since 03/26 isn't an option), which was 03/31/2012.
+```{r message=FALSE, warning=FALSE}
+ret_codes <- unique(mn_cleaned_manufs$retailer_code)
+msynth_results <- tibble()
+
+for (i in seq_along(ret_codes)) {
+  
+  msynth_pvals <- c()
+  
+  msynth_effects <- c()
+  
+  t_stores <- mn_cleaned_manufs %>% 
+    filter(retailer_code==ret_codes[i]) 
+  
+  c_stores <- mn_cleaned_manufs %>% 
+    filter(retailer_code!=ret_codes[i]) %>% 
+    mutate(type = 0) 
+  
+  t_store_codes <- unique(t_stores$store_code_uc)
+  
+  for (j in seq_along(t_store_codes)) {
+    
+    store <- t_stores %>% 
+      filter(store_code_uc==t_store_codes[j]) %>% 
+      mutate(type = 1)
+    
+    store_data <- store %>% 
+      bind_rows(c_stores)
+    
+    manufs <- unique(store$manuf)
+    
+    for (k in seq_along(manufs)) {
+      
+      manuf_data <- store_data %>%
+        filter(manuf == manufs[k])
+      
+      msynth <- microsynth(data = as.data.frame(manuf_data),
+                           idvar = "store_code_uc",
+                           intvar = "type",
+                           timevar = "n_week_end",
+                           start.pre = 14975, 
+                           end.pre = 15430, 
+                           end.post = 16067,
+                           match.out = "market_share",
+                           match.covar = "market_share",
+                           result.var="market_share", 
+                           omnibus.var="market_share",
+                           test="twosided", 
+                           use.survey = FALSE)
+  
+  msynth_pvals <- c(msynth_pvals, msynth[[2]]$`16067`[1,4])
+  
+  msynth_effects <- c(msynth_effects, msynth[[2]]$`16067`[1,3])
+  
+    }
+    
+  }
+  
+  loop_results <- tibble(
+    pval = msynth_pvals,
+    effect = msynth_effects,
+    retailer = ret_codes[i])
+  
+  msynth_results <- msynth_results %>%
+    bind_rows(loop_results)
+
+}
+```
+
+Plot the distribution of statistically significant treatment effects at the manufacturer level.
+```{r}
+msynth_results %>%
+  filter(pval < 0.05) %>%
+  ggplot(aes(x = effect)) +
+  geom_histogram() +
+  geom_vline(xintercept = 0, col = 'blue') +
+  facet_wrap(~retailer) + labs(x="Treatment Effect", y="Count", title="Manufacturer Level Significant Treatment Effects: MN Novelties", subtitle = "Market Share")
+```
+
+Check for retailers that only have one store, as this produces as error in Microsynth.
+```{r}
+retailers <- unique(mn_cleaned_manufs$retailer_code)
+small_rets <- c()
+n_stores <- c()
+
+for (i in seq_along(retailers)) {
+  
+  single_retailer <- mn_cleaned_manufs %>%
+    filter(retailer_code == retailers[i])
+  
+  n_stores <- c(n_stores, length(unique(single_retailer$store_code_uc)))
+    
+}
+
+(num_stores <- tibble(
+  Number_Stores = n_stores,
+  Retailer = retailers
+))
+```
+
+Create `ret_code_combo` that pairs each retailer with each other retailer, giving each the possibility to be the treated retailer code. Remove the cases where the control retailer only has one store.
+```{r}
+ret_code_combo <- as_tibble(expand.grid(treat=ret_codes, control=ret_codes)) %>% filter(treat!=control)
+
+ret_code_combo <- ret_code_combo %>%
+  filter(!control %in% c(864, 903))
+```
+
+Create a loop that runs microsynth for each retailer combination by row from `ret_code_combo`. Collect p-values and treatment effects for each store in each retailer combination. 
+```{r, message=FALSE, warning=FALSE}
+msynth_results <- tibble()
+loop_results <- tibble()
+
+for (i in 1:nrow(ret_code_combo)) {
+  msynth_pvals <- c()
+  msynth_effects <- c()
+  loop_rets <- ret_code_combo %>% filter(row_number()==i) %>% as_vector()
+  t_stores <- mn_cleaned_manufs %>% filter(retailer_code==unname(loop_rets[1])) 
+  c_stores <- mn_cleaned_manufs %>% filter(retailer_code==unname(loop_rets[2])) %>% mutate(type=0) 
+  t_store_codes <- unique(t_stores$store_code_uc)
+  for (j in seq_along(t_store_codes)) {
+    store <- t_stores %>% filter(store_code_uc==t_store_codes[j]) %>% 
+      mutate(type = 1)
+    store_data <- bind_rows(store, c_stores)
+    
+    manufs <- unique(store$manuf)
+    
+    for (k in seq_along(manufs)) {
+      
+      manuf_data <- store_data %>%
+        filter(manuf == manufs[k])
+    
+         msynth <- microsynth(data = as.data.frame(manuf_data),
+                           idvar = "store_code_uc",
+                           intvar = "type",
+                           timevar = "n_week_end",
+                           start.pre = 14975, 
+                           end.pre = 15430, 
+                           end.post = 16067,
+                           match.out = "market_share",
+                           match.out.min = "market_share",
+                           result.var="market_share", 
+                           omnibus.var="market_share", 
+                           test="twosided", 
+                           use.survey = FALSE,
+                           use.backup = TRUE)
+  
+  msynth_pvals <- c(msynth_pvals, msynth[[2]]$`16067`[1,4])
+  msynth_effects <- c(msynth_effects, msynth[[2]]$`16067`[1,3])
+  
+    }
+    
+  }
+  
+  loop_results <- tibble(
+    pval = msynth_pvals,
+    effect = msynth_effects,
+    retailer = paste0(unname(loop_rets[1]), ",", unname(loop_rets[2]))
+  )
+  
+  msynth_results <- msynth_results %>%
+    bind_rows(loop_results)
+
+}
+```
+
+Plot the statistically significant treatment effects for synthetic controls created from every combination of retailers.
+```{r fig.width=9, fig.height=7}
+msynth_results %>%
+  filter(pval < 0.05) %>%
+  ggplot(aes(x = effect)) +
+  geom_histogram() +
+  geom_vline(xintercept = 0, col = 'blue') +
+  facet_wrap(~retailer) +
+  labs(x = 'Effect',
+       y = 'Count',
+       title = 'Significant Treatment Effects for Retailer Combinations at Manufacturer Level: MN Novelties',
+       subtitle = 'Market Share')
+```
