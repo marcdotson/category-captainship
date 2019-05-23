@@ -1,0 +1,56 @@
+---
+title: "Minnesota Cereal Regression Discontinuity Analysis"
+output: github_document
+---
+
+Load packages.
+```{r}
+library(tidyverse)
+```
+
+Load data.
+```{r}
+load(here::here("..", "mn_ice_cream_clean.RData"))
+```
+
+Create a loop that plots market share for the category captain for each retailer.
+Create `captain_prods` by filtering for a single retailer and for the brands owned by the 
+captain, in this category (cereal) the captain is general mills, and then summarizing the
+number of unique products sold by the captain in each store in each week. Create `total_prods` which is similar to `captain_prods` except it contains the total number of unique products sold in a store in a given week. Create `mkt_share` by joining `captain_prods` and `total_prods`, then create the variable `capt_market_share` by dividing the number of unique products sold by the captain by the number sold in the store in a given week. Plot the market share for the captain on a weekly basis for each store. Include a vertical red line at the captainship implementation date.
+```{r fig.width=9, fig.height=7}
+ret_codes <- unique(mn_data$retailer_code)
+
+for (i in seq_along(ret_codes)) {
+  
+  captain_prods <- mn_data %>%
+    filter(retailer_code == ret_codes[i] & manuf_name %in% c("BEN", "TAL", "BRE", "UNI")) %>%
+    group_by(store_code_uc, week_end) %>%
+    summarize(n_captain_prods = n())
+  
+  total_prods <- mn_data %>%
+    filter(retailer_code == ret_codes[i]) %>%
+    group_by(store_code_uc, week_end) %>%
+    summarize(total_prods = n())
+  
+  mkt_share <- captain_prods %>%
+    left_join(total_prods, by = c('store_code_uc', 'week_end')) %>%
+    mutate(capt_market_share = n_captain_prods / total_prods)
+  
+  mkt_share_plot <- mkt_share %>%
+    ggplot(aes(x = week_end, 
+               y = capt_market_share)) +
+    geom_point() +
+    geom_vline(xintercept = as.numeric(as.Date("2012-03-31")), 
+               color = 'red') +
+    geom_vline(xintercept = as.numeric((as.Date("2013-03-30")))) +
+    facet_wrap(~store_code_uc) +
+    labs(x = 'Week',
+         y = 'Market Share',
+         title = paste('Weekly Market Share for Captain by Store for Retailer', ret_codes[i]),
+         subtitle = "Ice Cream Category")
+  
+  print(mkt_share_plot)
+  
+}
+```
+
