@@ -59,6 +59,107 @@ for (i in seq_along(ret_codes)) {
 }
 ```
 
+Create a heat map chart that shows all UPCs in store 2314183 in retailer 221, with unit sales in each cell. Filter for the store we want. 
+```{r}
+store_2314183 <- mn_data %>% filter(store_code_uc== 2314183) %>% distinct(upc, week_end, units) %>% arrange(week_end)
+```
+
+Fill in zeros for upc with missing sales in a given week. Create the chart. 
+```{r}
+ chart_data <- matrix(nrow = n_distinct(store_2314183$upc), 
+                      ncol = n_distinct(store_2314183$week_end))
+    
+    colnames(chart_data) <- as.character(unique(store_2314183$week_end))
+    
+    rownames(chart_data) <- unique(store_2314183$upc)
+    
+    ind_upcs <- unique(store_2314183$upc)
+    
+    for (k in seq_along(ind_upcs)) {
+      
+      single_upc_sales <- store_2314183 %>%
+        select(upc, week_end, units) %>%
+        filter(upc == ind_upcs[k])
+      
+      no_sales <- store_2314183 %>%
+        distinct(week_end) %>%
+        anti_join(single_upc_sales, by = "week_end") %>%
+        mutate(upc = ind_upcs[k], units = 0)
+      
+      single_upc_sales <- single_upc_sales %>%
+        bind_rows(no_sales) %>%
+        arrange(week_end) 
+      
+      chart_data[ind_upcs[k],] <- single_upc_sales$units
+      
+    }
+    
+    brks <- quantile(chart_data, probs = seq(.05, .95, .05), na.rm = TRUE)
+    
+    clrs <- round(seq(255, 40, length.out = length(brks) + 1), 0) %>% 
+    {paste0("rgb(255,", ., ",", ., ")")}
+    
+    chart_data <- as_tibble(chart_data, rownames = NA)
+    
+    sales_table <- datatable(chart_data, caption = "UPCs in Store 2314183") %>% 
+      formatStyle(names(chart_data), backgroundColor = styleInterval(brks, clrs))
+    
+    print(sales_table)
+    
+    
+```
+
+Try another way. 
+```{r}
+chart <- tibble()
+
+ind_upcs <- unique(store_2314183$upc)
+    
+    for (k in seq_along(ind_upcs)) {
+      
+      single_upc_sales <- store_2314183 %>%
+        select(upc, week_end, units) %>%
+        filter(upc == ind_upcs[k])
+      
+      no_sales <- store_2314183 %>%
+        distinct(week_end) %>%
+        anti_join(single_upc_sales, by = "week_end") %>%
+        mutate(upc = ind_upcs[k], units = 0)
+      
+      chart <- chart %>%
+        bind_rows(no_sales) %>% bind_rows(single_upc_sales) %>%
+        arrange(week_end) 
+      
+    }
+
+chart <- chart %>% spread(key=week_end, value=units)
+
+library(formattable)
+
+customGreen0 <- "#DeF7E9"
+customGreen <- "#71CA97"
+
+formattable(chart, lapply(1:nrow(chart), function(row) {area(row, col= -1) ~ color_tile(customGreen0, customGreen) } ) ) 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
