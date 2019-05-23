@@ -13,71 +13,16 @@ Load data.
 load(here::here("..", "mn_cereal_clean.RData"))
 ```
 
+Create a loop that plots market share for the category captain for each retailer.
 Create `captain_prods` by filtering for a single retailer and for the brands owned by the 
 captain, in this category (cereal) the captain is general mills, and then summarizing the
-number of unique products sold by the captain in each store in each week.
-```{r}
-captain_prods <- mn_data %>%
-  filter(retailer_code == 221 & manuf_name %in% c("G M", "ANN", "CAS")) %>%
-  group_by(store_code_uc, week_end) %>%
-  summarize(n_captain_prods = n())
-```
-
+number of unique products sold by the captain in each store in each week. 
 Create `total_prods` which is similar to `captain_prods` except it contains the total number of
-unique products sold in a store in a given week.
-```{r}
-total_prods <- mn_data %>%
-  filter(retailer_code == 221) %>%
-  group_by(store_code_uc, week_end) %>%
-  summarize(total_prods = n())
-```
-
-Create `mkt_share` by joining `captain_prods` and `total_prods`, then create the variable
-`capt_market_share` by dividing the number of unique products sold by the captain by the number
-sold in the store in a given week.
-```{r}
-mkt_share <- captain_prods %>%
-  left_join(total_prods, by = c('store_code_uc', 'week_end')) %>%
-  mutate(capt_market_share = n_captain_prods / total_prods)
-```
-
-Plot the market share for the captain on a weekly basis for each store. Include a vertical red
-line at the captainship implementation date.
-```{r fig.width=9, fig.height=7}
-mkt_share %>%
-  ggplot(aes(x = week_end, 
-             y = capt_market_share)) +
-  geom_point() +
-  geom_vline(xintercept = as.numeric(as.Date("2012-01-07")), color = 'red') +
-  facet_wrap(~store_code_uc) +
-  labs(x = 'Week',
-       y = 'Market Share',
-       title = 'Weekly Market Share for Captain by Store for Retailer 221')
-```
-
-Perform the previous steps for private label market share and plot.
-```{r fig.width=9, fig.height=7}
-private_prods <- mn_data %>%
-  filter(retailer_code == 221 & manuf_name == "CTL") %>%
-  group_by(store_code_uc, week_end) %>%
-  summarize(n_private_prods = n())
-
-mkt_share <- mkt_share %>%
-  left_join(private_prods, by = c('store_code_uc', 'week_end')) %>%
-  mutate(private_market_share = n_private_prods / total_prods)
-
-mkt_share %>%
-  ggplot(aes(x = week_end, 
-             y = private_market_share)) +
-  geom_point() +
-  geom_vline(xintercept = as.numeric(as.Date("2012-01-07")), color = 'red') +
-  facet_wrap(~store_code_uc) +
-  labs(x = 'Week',
-       y = 'Market Share',
-       title = 'Weekly Market Share for Private Label by Store for Retailer 221')
-```
-
-Create a loop that plots market share for the category captain for each retailer.
+unique products sold in a store in a given week. Create `mkt_share` by joining `captain_prods` 
+and `total_prods`, then create the variable `capt_market_share` by dividing the number of unique
+products sold by the captain by the number sold in the store in a given week. Plot the market 
+share for the captain on a weekly basis for each store. Include a vertical red line at the 
+captainship implementation date.
 ```{r fig.width=9, fig.height=7}
 ret_codes <- unique(mn_data$retailer_code)
 
@@ -106,13 +51,13 @@ for (i in seq_along(ret_codes)) {
     facet_wrap(~store_code_uc) +
     labs(x = 'Week',
          y = 'Market Share',
-         title = paste('Weekly Market Share for Captain by Store for Retailer', ret_codes[i]))
+         title = paste('Weekly Market Share for Captain by Store for Retailer', ret_codes[i]),
+         subtitle = "Cereal Category")
   
   print(mkt_share_plot)
   
 }
 ```
-
 
 
 
