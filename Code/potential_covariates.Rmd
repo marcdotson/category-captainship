@@ -1,0 +1,47 @@
+---
+title: "Investigating Potential Covariates"
+author: "Morgan Bale"
+date: "June 3, 2019"
+output: github_document
+---
+
+Load library and upload a data set. 
+```{r}
+library(tidyverse)
+load(here::here("..", "mo_ice_cream_clean.RData"))
+```
+
+List the unique variables in the data. Filter for store level variables. 
+```{r}
+names(mo_data)
+
+stores <- mo_data %>% select(store_code_uc, feature, display, parent_code, retailer_code, store_zip3, fips_state_descr, fips_county_descr, dma_descr, manuf_name, upc, units)
+```
+
+Some potential covariates are number of stores in competing area, feature, display, whether the store is in a rural area, suburb, city, etc, the designated market area, number of manufactures,  and number of UPCs sold. 
+
+First, let's look at the number of stores in the area by retailer. The number of stores in the other retailers make up the competition. We can calculate market share as the percent of stores in a selected retailer compared to the number of stores in the market. 
+```{r}
+num_stores <- stores %>% distinct(retailer_code, store_code_uc) %>% group_by(retailer_code) %>% summarise(n_stores=n())
+
+total_stores <- sum(num_stores$n_stores)
+
+num_stores <- num_stores %>% mutate(Market_share=n_stores/total_stores) %>% round(3)
+```
+Retailers 117 and 62 have the highest market share in terms of number of stores at around 30%. These two retailers might be in more direct competition with each other since they have a similar number of stores. Category captainship might affect retailers like 117 and 62 differently than retailers 126 and 130 that only have a couple of stores. This would have to be compared across states, as only one retailer per state is treated. 
+
+The feature variable shows whether a product was featured in a given week. At the store level, we can look at how many products in the category were featured over time. The display variable tells whether the product was on display in another location than its usual spot. 
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
