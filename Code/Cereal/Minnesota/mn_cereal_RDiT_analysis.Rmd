@@ -59,9 +59,15 @@ for (i in seq_along(ret_codes)) {
 }
 ```
 
-Create a heat map chart that shows all UPCs in store 2314183 in retailer 221, with unit sales in each cell. Filter for the store we want. 
+Label brands with their actual manufacturer. Create a heat map chart that shows all UPCs in store 2314183 in retailer 221, with unit sales in each cell. Filter for the store we want. 
 ```{r}
+mn_data <- mn_data %>% mutate(actual_manuf = if_else(manuf_name == "G M", "G M", if_else(manuf_name == "ANN", "G M", if_else(manuf_name == "CAS", "G M", 
+                        if_else(manuf_name == "KEL", "KEL", if_else(manuf_name == "KAS", "KEL", if_else(manuf_name == "BEA", "KEL", if_else(manuf_name=="CTL", "CTL", "other"))))))))
+
+descr <- mn_data %>% filter(store_code_uc== 2314183) %>% distinct(upc, brand_descr, actual_manuf)
+
 store_2314183 <- mn_data %>% filter(store_code_uc== 2314183) %>% distinct(upc, week_end, units) %>% arrange(week_end)
+
 ```
 
 Fill in zeros for upc with missing sales in a given week. Create the chart. 
@@ -118,7 +124,6 @@ ind_upcs <- unique(store_2314183$upc)
     for (k in seq_along(ind_upcs)) {
       
       single_upc_sales <- store_2314183 %>%
-        select(upc, week_end, units) %>%
         filter(upc == ind_upcs[k])
       
       no_sales <- store_2314183 %>%
@@ -132,14 +137,18 @@ ind_upcs <- unique(store_2314183$upc)
       
     }
 
-chart <- chart %>% spread(key=week_end, value=units)
+chart <- chart %>% left_join(descr, by="upc") 
+
+chart_1 <- chart %>% spread(key=week_end, value=units)
 
 library(formattable)
 
 customGreen0 <- "#DeF7E9"
 customGreen <- "#71CA97"
 
-formattable(chart, lapply(1:nrow(chart), function(row) {area(row, col= -1) ~ color_tile(customGreen0, customGreen) } ) ) 
+csv_chart <- formattable(chart_1, lapply(1:nrow(chart_1), function(row) {area(row, col= -1:-3) ~ color_tile(customGreen0, customGreen) } ) ) 
+
+write.csv(csv_chart, file="heatmap1.csv")
 ```
 
 
