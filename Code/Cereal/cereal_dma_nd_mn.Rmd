@@ -1,0 +1,42 @@
+---
+title: "DMA Exploration: Fargo ND and Moorhead MN"
+output: github_document
+---
+
+Load library and data set. 
+```{r}
+library(tidyverse)
+
+load(here::here("..", "mn_cereal_clean.RData"))
+load(here::here("..", "nd_cereal_clean.RData"))
+```
+
+Supervalu owns a chain called Hornbacher's that has stores in both Moorhead MN and Fargo ND. Hornbacher's had 6 stores in 2012. Find the unique dma descriptions in the MN data. Filter for Minneapolis-St Paul MN and Fargo-Valley City ND dma descriptions since Cub foods is located in Minneapolis/St. Paul and Hornbacher's is located in Fargo/Moorhead. We were hoping to find an overlap between the two locations, but the Minneapolis/St.Paul location is so large that it includes all the retailer codes in the data. Next, filter for just retailer codes that have a Fargo-Valley City ND dma description but are located in MN. Look at the number of stores for these retailers. 
+```{r}
+unique(mn_data$dma_descr)
+
+hornbach_mn <- mn_data %>% filter(dma_descr %in% c("MINNEAPOLIS-ST PAUL MN", "FARGO-VALLEY CITY ND")) 
+
+distinct(hornbach_mn, retailer_code)
+
+fargo_mn <- mn_data %>% filter(dma_descr=="FARGO-VALLEY CITY ND")
+
+fargo_mn %>% distinct(retailer_code, store_code_uc) %>% group_by(retailer_code) %>% summarise(n_stores=n())
+```
+
+Find the unique dma descriptions in the ND data. Find the retailer codes with a Fargo-Valley City ND dma description. Find the number of stores in those retailer codes and check the total number of stores not filtering for dma description. Both numbers of stores are the same. Both MN and ND contain retailer codes 903 and 864, one of which is likely to be Hornbacher's. 
+```{r}
+unique(nd_data$dma_descr)
+
+hornbach_nd <- nd_data %>% filter(dma_descr=="FARGO-VALLEY CITY ND")
+
+distinct(hornbach_nd, retailer_code)
+
+hornbach_nd %>% distinct(retailer_code, store_code_uc) %>% group_by(retailer_code) %>% summarise(n_stores=n())
+
+nd_data %>% distinct(retailer_code, store_code_uc) %>% group_by(retailer_code) %>% summarise(n_stores=n())
+```
+
+Retailer code 903 has 1 store in MN and 5 stores in ND that both have dma description of Fargo-Valley City ND. Hornbacher's had 5 stores in ND in 2012 (Northport, Village West, Express, Southgate, and Osgood) and 1 store in MN in 2012 (Moorhead-101 11th st). We used the wayback machine to find Hornbacher's and Supervalu's sites in 2012. Supervalu's site reports that Hornbacher's had 6 stores in the Fargo/Moorhead area. Hornbacher's site shows the six stores locations. Given this information, retailer 903 is Hornbacher's and is our treated retailer. 
+
+
