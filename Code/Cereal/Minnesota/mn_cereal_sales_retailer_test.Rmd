@@ -1,5 +1,5 @@
 ---
-title: "Minnesota Cereal Retailer Test"
+title: "Minnesota Cereal Sales Retailer Test"
 author: "Morgan Bale"
 date: "5/13/2019"
 output: github_document
