@@ -1,0 +1,96 @@
+---
+title: "Finding the treated retailers by store locations"
+output: github_document
+---
+
+Load library and data set. 
+```{r}
+library(tidyverse)
+
+load(here::here("..", "mn_cereal_clean.RData"))
+load(here::here("..", "nd_cereal_clean.RData"))
+load(here::here("..", "mo_lunchmeat_clean.RData"))
+```
+
+NORTH DAKOTA (903)
+
+Supervalu owns a chain called Hornbacher's that has stores in both Moorhead MN and Fargo ND. Hornbacher's had 6 stores in 2012. Find the unique dma descriptions in the MN data. Filter for Minneapolis-St Paul MN and Fargo-Valley City ND dma descriptions since Cub foods is located in Minneapolis/St. Paul and Hornbacher's is located in Fargo/Moorhead. We were hoping to find an overlap between the two locations, but the Minneapolis/St.Paul location is so large that it includes all the retailer codes in the data. Next, filter for just retailer codes that have a Fargo-Valley City ND dma description but are located in MN. Look at the number of stores for these retailers. 
+```{r}
+unique(mn_data$dma_descr)
+
+hornbach_mn <- mn_data %>% filter(dma_descr %in% c("MINNEAPOLIS-ST PAUL MN", "FARGO-VALLEY CITY ND")) 
+
+distinct(hornbach_mn, retailer_code)
+
+fargo_mn <- mn_data %>% filter(dma_descr=="FARGO-VALLEY CITY ND")
+
+fargo_mn %>% distinct(retailer_code, store_code_uc) %>% group_by(retailer_code) %>% summarise(n_stores=n())
+```
+
+Find the unique dma descriptions in the ND data. Find the retailer codes with a Fargo-Valley City ND dma description. Find the number of stores in those retailer codes and check the total number of stores not filtering for dma description. Both numbers of stores are the same. Both MN and ND contain retailer codes 903 and 864, one of which is likely to be Hornbacher's. 
+```{r}
+unique(nd_data$dma_descr)
+
+hornbach_nd <- nd_data %>% filter(dma_descr=="FARGO-VALLEY CITY ND")
+
+distinct(hornbach_nd, retailer_code)
+
+hornbach_nd %>% distinct(retailer_code, store_code_uc) %>% group_by(retailer_code) %>% summarise(n_stores=n())
+
+nd_data %>% distinct(retailer_code, store_code_uc) %>% group_by(retailer_code) %>% summarise(n_stores=n())
+```
+
+Retailer code 903 has 1 store in MN and 5 stores in ND that both have dma description of Fargo-Valley City ND. Hornbacher's had 5 stores in ND in 2012 (Northport, Village West, Express, Southgate, and Osgood) and 1 store in MN in 2012 (Moorhead-101 11th st). We used the wayback machine to find Hornbacher's and Supervalu's sites in 2012. Supervalu's site reports that Hornbacher's had 6 stores in the Fargo/Moorhead area. Hornbacher's site shows the six stores locations. Given this information, retailer 903 is Hornbacher's and is our treated retailer. 
+
+
+MINNESOTA (221)
+
+Check the number of stores in each MN retailer and location of those stores in order to match with the wayback machine locations online. Find unique county and zipcode descriptions to see how many stores are in each location in attempt to match with Cub Foods. 
+```{r}
+unique(mn_data$store_zip3)
+
+mn_zipcodes <- mn_data %>% distinct(retailer_code, store_code_uc, store_zip3) %>% group_by(retailer_code, store_zip3) %>% summarise(n_stores=n())
+
+cub_zips <- c(550, 551, 553, 554, 558, 559, 560, 562, 565)
+cub_stores <- c(11, 18, 15, 26, 1, 1, 2, 1, 0)
+
+cub <- tibble(cub_zips, cub_stores)
+```
+`cub` includes the zipcodes and number of stores Cub food currently has. The wayback machine does not have archived all the stores locations in 2012, so we had to use the Cub food stores current locations. The locations are likely similar. When we compare `cub` to the retailer options in `zipcodes` it is clear that the treated retailer is 221. 5 out of 9 zipcodes are an exact match between 221 and Cub (558, 559, 560, 562, 565). Zipcode 550 has 11 stores in Cub Foods and 10 stores in retailer 221. The last three zipcodes (551, 553, 554) are close but missing a few stores in the actual data compared to the stores online. 
+
+
+MISSOURI (62)
+
+The way back machine does not show the missouri locations for Shop'n'Save. All MO Shop'n'Save stores are closing or being sold. I found a website that listed 6 stores in zip 631 and 5 stores in 630 that are closing (https://www.kmov.com/news/these-shop-n-save-stores-are-on-closure-list-if/article_d4f853da-bb86-11e8-a565-635fd47aaf94.html). The only retailer with stores in zipcodes that start with 631 and 630 is retailer 62. All St. Louis zipcodes start with 631, and as the Supervalu website said their key Shop'n'Save market was in St. Louis, this is also evidence for retailer 62. Also, we can check the dma descriptions for the retailers in Missouri. There are only two retailers with dma descriptions in St. Louis (130 and 62). This combined with the other retailer tests previously done, makes us believe retailer 62 is most likely Supervalu.  
+```{r}
+unique(mo_data$store_zip3)
+
+mo_zipcodes <- mo_data %>% distinct(retailer_code, store_code_uc, store_zip3) %>% group_by(retailer_code, store_zip3) %>% summarise(n_stores=n())
+
+mo_dma <- mo_data %>% distinct(retailer_code, store_code_uc, dma_descr) %>% group_by(retailer_code, dma_descr) %>% summarise(n_stores=n())
+```
+
+
+WASHINGTON DC ()
+
+The current and old version of the Shoppers website does not have any stores listed in DC, even though Supervalu's website says the DC market is covered by Shoppers. It seems like Supervalu might not have any stores in DC, and it might be better to use either Maryland or Virginia if we want to evaluate Shoppers. 
+
+
+ILLINOIS ()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
