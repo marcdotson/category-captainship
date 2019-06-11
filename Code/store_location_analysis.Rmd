@@ -49,14 +49,14 @@ Check the number of stores in each MN retailer and location of those stores in o
 ```{r}
 unique(mn_data$store_zip3)
 
-mn_zipcodes <- mn_data %>% distinct(retailer_code, store_code_uc, store_zip3) %>% group_by(retailer_code, store_zip3) %>% summarise(n_stores=n())
+(mn_zipcodes <- mn_data %>% distinct(retailer_code, store_code_uc, store_zip3) %>% group_by(retailer_code, store_zip3) %>% summarise(n_stores=n()))
 
 cub_zips <- c(550, 551, 553, 554, 558, 559, 560, 562, 565)
 cub_stores <- c(11, 18, 15, 26, 1, 1, 2, 1, 0)
 
-cub <- tibble(cub_zips, cub_stores)
+(cub <- tibble(cub_zips, cub_stores))
 ```
-`cub` includes the zipcodes and number of stores Cub food currently has. The wayback machine does not have archived all the stores locations in 2012, so we had to use the Cub food stores current locations. The locations are likely similar. When we compare `cub` to the retailer options in `zipcodes` it is clear that the treated retailer is 221. 5 out of 9 zipcodes are an exact match between 221 and Cub (558, 559, 560, 562, 565). Zipcode 550 has 11 stores in Cub Foods and 10 stores in retailer 221. The last three zipcodes (551, 553, 554) are close but missing a few stores in the actual data compared to the stores online. 
+`cub` includes the zipcodes and number of stores Cub food currently has. The wayback machine does not have archived all the stores locations in 2012, so we had to use the Cub food stores current locations. The locations are likely similar. When we compare `cub` to the retailer options in `zipcodes` it is clear that the treated retailer is 221. 5 out of 9 zipcodes are an exact match between 221 and Cub (558, 559, 560, 562, 565). Zipcode 550 has 11 stores in Cub Foods and 10 stores in retailer 221. The last three zipcodes (551, 553, 554) are close but missing a few stores in the actual data compared to the stores online. The total number of stores under retail code 221 is 43. According to the supervalu website, there were 46 total stores in 2012. This retailer has the number of stores that is closest to matching 46.
 
 
 MISSOURI (62)
@@ -76,7 +76,9 @@ WASHINGTON DC ()
 The current and old version of the Shoppers website does not have any stores listed in DC, even though Supervalu's website says the DC market is covered by Shoppers. It seems like Supervalu might not have any stores in DC, and it might be better to use either Maryland or Virginia if we want to evaluate Shoppers. 
 
 
-ILLINOIS ()
+ILLINOIS (6)
+
+The supervalu website claims it has 182 stores in the Chicago market. Retail code 6 in the data has 161 stores associated with it. The next highest number of stores associated with any retailer code is 78. Additionally, all 161 retailer 6 stores are contained in the Chicago DMA description. This leads us to believe that retailer 6 is the supervalu retailer located in Chicago.
 
 
 
