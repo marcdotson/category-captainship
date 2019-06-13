@@ -78,21 +78,5 @@ The current and old version of the Shoppers website does not have any stores lis
 
 ILLINOIS (6)
 
-The supervalu website claims it has 182 stores in the Chicago market. Retail code 6 in the data has 161 stores associated with it. The next highest number of stores associated with any retailer code is 78. Additionally, all 161 retailer 6 stores are contained in the Chicago DMA description. This leads us to believe that retailer 6 is the supervalu retailer located in Chicago.
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+The supervalu website claims it has 182 stores in the Chicago market. Retail code 6 in the data has 161 stores associated with it. The next highest number of stores associated with any retailer code is 78. Additionally, all 161 retailer 6 stores are contained in the Chicago DMA description. This leads us to believe that retailer 6 is the Supervalu retailer located in Chicago.
 
