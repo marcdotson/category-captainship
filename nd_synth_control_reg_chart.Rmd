@@ -1,0 +1,86 @@
+---
+title: "North Dakota Initial Synthetic Control Regression Chart"
+output: github_document
+---
+
+The treated retailer in North Dakota is 903. Captain is always 1, validator is always 2, private label is always 3, and aggregate others is always 4. 
+
+Load library and North Dakota data. 
+```{r}
+library(tidyverse)
+library(gsynth)
+
+load(here::here("..", "nd_cereal_clean.RData"))
+nd_cereal <- nd_data
+
+load(here::here("..", "nd_spreads_jams_clean.RData"))
+nd_sj <- nd_data 
+
+load(here::here("..", "nd_can_soup_clean.RData"))
+nd_soup <- nd_data
+
+load(here::here("..", "nd_ice_cream_clean.RData"))
+nd_ice_cream <- nd_data
+
+load(here::here("..", "nd_lunchmeat_clean.RData"))
+nd_lmeat <- nd_data
+
+load(here::here("..", "nd_novel_clean.RData"))
+nd_novel <- nd_data
+
+load(here::here("..", "nd_pb_clean.RData"))
+nd_pb <- nd_data
+
+load(here::here("..", "nd_pickles_olives_clean.RData"))
+nd_pick <- nd_data
+
+#add frozen dinners
+
+rm(nd_data)
+```
+
+Aggregate captain, private label, and validator and the "other" manufacturers, those that are not captain, validator, or private label. First for peanut butter. 
+```{r}
+pb_cap <- nd_pb %>% filter(manuf_name=="SKI") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=1) 
+
+pb_val <- nd_pb %>% filter(manuf_name %in% c("JIF", "SMU", "SIM", "SAN", "ADA")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=2) 
+
+pb_ctl <- nd_pb %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=3) 
+
+pb_other <- nd_pb %>% filter(!manuf_name %in% c("JIF", "SMU", "SIM", "SAN", "ADA", "SKI", "CTL")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=4) 
+
+pb_agg <- pb_cap %>% bind_rows(pb_val) %>% bind_rows(pb_other) %>% bind_rows(pb_ctl)
+
+rm(pb_cap, pb_val, pb_ctl, pb_other)
+```
+
+For ice cream.
+```{r}
+
+```
+
+Write code for nd_pb. Then turn it into a loop. 
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
