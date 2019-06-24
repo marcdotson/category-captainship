@@ -8,7 +8,7 @@ The treated retailer in North Dakota is 903. Captain is always 1, validator is a
 Load library and North Dakota data. 
 ```{r}
 library(tidyverse)
-library(gsynth)
+library(microsynth)
 
 load(here::here("..", "nd_cereal_clean.RData"))
 nd_cereal <- nd_data
@@ -39,7 +39,34 @@ nd_pick <- nd_data
 rm(nd_data)
 ```
 
-Aggregate captain, private label, and validator and the "other" manufacturers, those that are not captain, validator, or private label. First for peanut butter. 
+Check manufacturers to see how many weeks they have. Manufacturers with less than 157 weeks of observations are dropped from the data.
+```{r}
+weeks <- unique(nd_pb$week_end)
+
+codes <- unique(nd_pb$manuf_name)
+
+drops <- c()
+
+for (i in seq_along(codes)) {
+  
+  single_code <- nd_pb %>% filter(manuf_name==codes[i])
+  
+  single_code_vec <- unique(single_code$week_end)
+  
+  if (length(single_code_vec) < length(weeks)) {
+    
+    drops <- c(drops, codes[i])
+    
+  }
+
+}
+
+nd_pb <- nd_pb %>% 
+  filter(!manuf_name %in% drops) %>% 
+  arrange(retailer_code, store_code_uc, week_end) 
+```
+
+Aggregate captain, private label, validator and the "other" manufacturers, those that are not captain, validator, or private label. First for peanut butter: 
 ```{r}
 pb_cap <- nd_pb %>% filter(manuf_name=="SKI") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=1) 
 
@@ -47,21 +74,176 @@ pb_val <- nd_pb %>% filter(manuf_name %in% c("JIF", "SMU", "SIM", "SAN", "ADA"))
 
 pb_ctl <- nd_pb %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=3) 
 
-pb_other <- nd_pb %>% filter(!manuf_name %in% c("JIF", "SMU", "SIM", "SAN", "ADA", "SKI", "CTL")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=4) 
+missing <- tibble(retailer_code=9, week_end=as_date(2011-03-19), sales=0, manuf=4)
+
+pb_other <- nd_pb %>% filter(!manuf_name %in% c("JIF", "SMU", "SIM", "SAN", "ADA", "SKI", "CTL")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=4) %>% bind_rows(missing)
 
 pb_agg <- pb_cap %>% bind_rows(pb_val) %>% bind_rows(pb_other) %>% bind_rows(pb_ctl)
 
-rm(pb_cap, pb_val, pb_ctl, pb_other)
+#rm(pb_cap, pb_val, pb_ctl, pb_other)
 ```
 
-For ice cream.
+For ice cream:
 ```{r}
+ice_cap <- nd_ice_cream %>% filter(manuf_name %in% c("BEN", "TAL", "BRE", "UNI")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=1) 
 
+ice_val <- nd_ice_cream %>% filter(manuf_name %in% c("DRE", "HAA")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=2) 
+
+ice_ctl <- nd_ice_cream %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=3) 
+
+ice_other <- nd_ice_cream %>% filter(!manuf_name %in% c("BEN", "TAL", "BRE", "UNI", "DRE", "HAA", "CTL")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=4) 
+
+ice_agg <- ice_cap %>% bind_rows(ice_val) %>% bind_rows(ice_other) %>% bind_rows(ice_ctl)
+
+rm(ice_cap, ice_val, ice_ctl, ice_other)
 ```
 
-Write code for nd_pb. Then turn it into a loop. 
+For cereal:
 ```{r}
+cereal_cap <- nd_cereal %>% filter(manuf_name %in% c("G M", "ANN", "CAS")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=1) 
 
+cereal_val <- nd_cereal %>% filter(manuf_name %in% c("KEL", "KAS", "BEA")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=2) 
+
+cereal_ctl <- nd_cereal %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=3) 
+
+cereal_other <- nd_cereal%>% filter(!manuf_name %in% c("G M", "ANN", "CAS", "KEL", "KAS", "BEA", "CTL")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=4) 
+
+cereal_agg <- cereal_cap %>% bind_rows(cereal_val) %>% bind_rows(cereal_other) %>% bind_rows(cereal_ctl)
+
+rm(cereal_cap, cereal_val, cereal_ctl, cereal_other)
+```
+
+For novelties: 
+```{r}
+n_cap <- nd_novel %>% filter(manuf_name %in% c("BEN", "POP", "GOO", "KLO", "BRE", "FUD", "CHO", "CRE", "MAG", "YOS", "FRU", "TAL")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=1) 
+
+n_val <- nd_novel %>% filter(manuf_name %in% c("DRE", "EDY", "NES", "HAA", "SKI", "ESK", "CAR", "(IC", "THE")) %>% 
+  group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=2) 
+
+n_ctl <- nd_novel %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=3) 
+
+n_other <- nd_novel %>% filter(!manuf_name %in% c("DRE", "EDY", "NES", "HAA", "SKI", "ESK", "CAR", "(IC", "THE", "BEN", "POP", "GOO", "KLO", "BRE", "FUD", "CHO", "CRE", "MAG", "YOS", "FRU", "TAL", "CTL")) %>% group_by(retailer_code, week_end) %>% 
+  summarise(sales=sum(sales)) %>% mutate(manuf=4) 
+
+novel_agg <- n_cap %>% bind_rows(n_val) %>% bind_rows(n_other) %>% bind_rows(n_ctl)
+
+rm(n_cap, n_val, n_ctl, n_other)
+```
+
+For pickles and olives: 
+```{r}
+pick_cap <- nd_pick %>% filter(manuf_name %in% c("VLA", "NAL") | brand_descr=="FARMER'S GARDEN") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=1) 
+
+pick_val <- nd_pick %>% filter(manuf_name %in% c("EAR", "PEA", "GRE", "HOM", "BLA") | brand_descr=="MEDITERRANEAN PEARLS") %>% 
+  group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=2) 
+
+pick_ctl <- nd_pick %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=3) 
+
+pick_other <- nd_pick %>% filter(!manuf_name %in% c("VLA", "NAL", "EAR", "PEA", "GRE", "HOM", "BLA", "CTL")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=4) 
+
+pick_agg <- pick_cap %>% bind_rows(pick_val) %>% bind_rows(pick_other) %>% bind_rows(pick_ctl)
+
+rm(pick_cap, pick_val, pick_ctl, pick_other)
+```
+
+For canned soup: 
+```{r}
+soup_cap <- nd_soup %>% filter(manuf_name =="CAM") %>% group_by(retailer_code, week_end) %>% 
+  summarise(sales=sum(sales)) %>% mutate(manuf=1) 
+
+soup_val <- nd_soup %>% filter(manuf_name=="PRO") %>% 
+  group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=2) 
+
+soup_ctl <- nd_soup %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=3) 
+
+soup_other <- nd_soup %>% filter(!manuf_name %in% c("CAM", "CTL", "PRO")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=4) 
+
+soup_agg <- soup_cap %>% bind_rows(soup_val) %>% bind_rows(soup_other) %>% bind_rows(soup_ctl)
+
+rm(soup_cap, soup_val, soup_ctl, soup_other)
+```
+
+For spreads & jams: 
+```{r}
+sj_cap <- nd_sj %>% filter(manuf_name %in% c("SMU","SAN","R W", "DIC", "KIN", "CRO")) %>% group_by(retailer_code, week_end) %>% 
+  summarise(sales=sum(sales)) %>% mutate(manuf=1) 
+
+sj_val <- nd_sj %>% filter(manuf_name=="WEL") %>% 
+  group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=2) 
+
+sj_ctl <- nd_sj %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=3) 
+
+sj_other <- nd_sj %>% filter(!manuf_name %in% c("WEL", "CTL", "SMU","SAN","R W", "DIC", "KIN", "CRO")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=4) 
+
+sj_agg <- sj_cap %>% bind_rows(sj_val) %>% bind_rows(sj_other) %>% bind_rows(sj_ctl)
+
+rm(sj_cap, sj_val, sj_ctl, sj_other)
+```
+
+For lunchmeat:
+```{r}
+lmeat_cap <- nd_lmeat %>% filter(manuf_name=="OSC") %>% group_by(retailer_code, week_end) %>% 
+  summarise(sales=sum(sales)) %>% mutate(manuf=1) 
+
+lmeat_val <- nd_lmeat %>% filter(manuf_name=="SAR" | brand_descr %in% c("HILLSHIRE FARM", "HILLSHIRE FARM GOURMET CREATIN", 
+                                                                     "HILLSHIRE FARM DELI SELECT", "HILLSHIRE FARM DELI CARVERS", 
+                                                                     "HILLSHIRE FARM LIT'L WIENERS", "HILLSHIRE FARM LIT'L SMOKIES",
+                                                                     "HILLSHIRE FARM LIT'L POLSKAS", "HILLSHIRE FARM LIT'L BEEF FRNK",
+                                                                     "HILLSHIRE FARM YARD-O-BEEF")) %>% 
+  group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=2) 
+
+lmeat_ctl <- nd_lmeat %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>%
+  mutate(manuf=3) 
+
+lmeat_other <- nd_lmeat %>% filter(!manuf_name %in% c("OSC", "SAR", "CTL") | !brand_descr %in% c("HILLSHIRE FARM", "HILLSHIRE FARM GOURMET CREATIN",  "HILLSHIRE FARM DELI SELECT", "HILLSHIRE FARM DELI CARVERS", "HILLSHIRE FARM LIT'L WIENERS", "HILLSHIRE FARM LIT'L SMOKIES", "HILLSHIRE FARM LIT'L POLSKAS", "HILLSHIRE FARM LIT'L BEEF FRNK", "HILLSHIRE FARM YARD-O-BEEF")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=4) 
+
+lmeat_agg <- lmeat_cap %>% bind_rows(lmeat_val) %>% bind_rows(lmeat_other) %>% bind_rows(lmeat_ctl)
+
+rm(lmeat_cap, lmeat_val, lmeat_ctl, lmeat_other)
+```
+
+Clean data for microsynth. Create `treat` variable, convert `week_end` to a numeric, and create a log sales variable. 
+```{r}
+pb_agg <- pb_agg %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-07-16", 1, 0)) %>%
+  mutate(n_week_end=as.numeric(week_end)) %>% mutate(lsales=log(sales))
+
+pb_manufs <- unique(pb_agg$manuf)
+```
+
+Run a synthetic control comparing the captain in 903 as the treated group to the captains in the other two retailers as the control group. Run Microsynth loop for log sales for each manufacturer (1-4), store results in a table. 
+```{r}
+msynth_results <- tibble()
+loop_results <- tibble()
+
+  for (j in seq_along(pb_manufs)) {
+    msynth_pvals <- c()
+    msynth_effects <- c()
+    manuf_data <- pb_agg %>% filter(manuf==pb_manufs[j])
+         msynth <- microsynth(data = as.data.frame(manuf_data),
+                           idvar = "retailer_code",
+                           intvar = "treat",
+                           timevar = "n_week_end",
+                           start.pre = 14975, 
+                           end.pre = 15542, 
+                           end.post = 16067,
+                           match.out = "lsales",
+                           match.out.min = "lsales",
+                           result.var="lsales", 
+                           omnibus.var="lsales", 
+                           test="twosided", 
+                           use.survey = FALSE)
+  
+  msynth_pvals <- c(msynth_pvals, msynth[[2]]$`16067`[1,4])
+  msynth_effects <- c(msynth_effects, msynth[[2]]$`16067`[1,3])
+  
+  loop_results <- tibble(
+    pval = msynth_pvals,
+    effect = msynth_effects,
+    manufacturer = pb_manufs[j]
+  )
+  
+  msynth_results <- msynth_results %>%
+    bind_rows(loop_results) }
 ```
 
 
