@@ -1,0 +1,232 @@
+---
+title: "Minnesota Frozen Dinners Cleaning"
+author: "Cameron Bale"
+date: "August 13, 2018"
+output: github_document
+---
+
+
+Install packages.
+```{r eval =FALSE, include=FALSE}
+install.packages("tidyverse")
+install.packages("tibbletime")
+install.packages("lubridate")
+```
+
+Load libraries.
+```{r results='hide'}
+library(tidyverse)
+library(tibbletime)
+library(lubridate)
+```
+
+Read in the files from the frozen_dinners_entries.tgz for 2011.
+```{r}
+frozen_dinners_files <- untar("frozen_dinners_entries.tgz", list = TRUE)
+
+untar("frozen_dinners_entries.tgz")
+
+move_11 <- tibble()
+
+for (i in seq_along(frozen_dinners_files)) {
+    
+    if (substr(frozen_dinners_files[i], 22, 40) == "2011/Movement_Files") {
+        
+        temp_move_11 <- read_tsv(frozen_dinners_files[i])
+        
+        move_11 <- move_11 %>%
+            
+            bind_rows(temp_move_11)
+        
+        rm(temp_move_11)
+    }
+    
+}
+
+products <- read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote = "")
+
+stores_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv") %>%
+  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO", "IL"))
+
+full_11 <- move_11 %>%
+  inner_join(stores_11, by ="store_code_uc") %>%
+  inner_join(products, by ="upc")
+
+save(full_11, file = 'full_11.RData')
+
+rm(move_11, stores_11, full_11)
+```
+
+Read in the files for 2012.
+```{r}
+move_12 <- tibble()
+
+for (i in seq_along(frozen_dinners_files)) {
+    
+    if (substr(frozen_dinners_files[i], 22, 40) == "2012/Movement_Files") {
+        
+        temp_move_12 <- read_tsv(frozen_dinners_files[i])
+        
+        move_12 <- move_12 %>%
+            
+            bind_rows(temp_move_12)
+        
+        rm(temp_move_12)
+    }
+    
+}
+
+stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND","MN","MO","IL"))
+
+full_12 <- move_12 %>%
+  inner_join(stores_12, by ="store_code_uc") %>% 
+  inner_join(products, by ="upc")
+
+save(full_12, file = 'full_12.RData')
+
+rm(move_12, stores_12, full_12)
+```
+
+Read in the files for 2013.
+```{r}
+move_13 <- tibble()
+
+for (i in seq_along(frozen_dinners_files)) {
+    
+    if (substr(frozen_dinners_files[i], 22, 40) == "2013/Movement_Files") {
+        
+        temp_move_13 <- read_tsv(frozen_dinners_files[i])
+        
+        move_13 <- move_13 %>%
+            
+            bind_rows(temp_move_13)
+        
+        rm(temp_move_13)
+    }
+    
+}
+
+stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", guess_max = 20000) %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND","MN","MO","DC"))
+
+full_13 <- move_13 %>%
+  inner_join(stores_13, by ="store_code_uc") %>% 
+  inner_join(products, by ="upc")
+
+rm(move_13, stores_13, products)
+
+load('full_11.RData')
+load('full_12.RData')
+```
+
+Merge the full file for each year into one file `full_11_12_13` and change the `week_end` variable to `year-month-day` format. Create sales variable which is `units` * `price`.
+```{r}
+full_11_12_13 <- full_11 %>%
+  bind_rows(full_12) %>%
+  bind_rows(full_13) %>%
+  mutate(week_end = ymd(week_end), sales = units * price)
+```
+
+Create tbls containing each distinct store code (ex: `store_id_11`). Anti-join those three tbls to get 6 tbls
+containing the stores that don't show up in all of the years ex:`in_11_not_12`. Anti join those  tbls with the full movement file to remove the stores that don't show up in all of the years. Create a new variable `manuf_name` which contains the first 3 characters of the `brand_descr` and allows for easy identification of the manufacturers.
+```{r}
+store_id_11 <- distinct(full_11, store_code_uc)
+store_id_12 <- distinct(full_12, store_code_uc)
+store_id_13 <- distinct(full_13, store_code_uc)
+
+rm(full_11, full_12, full_13)
+
+in_11_not_12 <- anti_join(store_id_11, store_id_12, by = "store_code_uc")
+in_11_not_13 <- anti_join(store_id_11, store_id_13, by = "store_code_uc")
+in_12_not_11 <- anti_join(store_id_12, store_id_11, by = "store_code_uc")
+in_12_not_13 <- anti_join(store_id_12, store_id_13, by = "store_code_uc")
+in_13_not_11 <- anti_join(store_id_13, store_id_11, by = "store_code_uc")
+in_13_not_12 <- anti_join(store_id_13, store_id_12, by = "store_code_uc")
+
+full_11_12_13 <- full_11_12_13 %>%
+  anti_join(in_11_not_12, by = "store_code_uc") %>%
+  anti_join(in_11_not_13, by = "store_code_uc") %>%
+  anti_join(in_12_not_11, by = "store_code_uc") %>%
+  anti_join(in_12_not_13, by = "store_code_uc") %>%
+  anti_join(in_13_not_11, by = "store_code_uc") %>%
+  anti_join(in_13_not_12, by = "store_code_uc")
+
+full_11_12_13 <- full_11_12_13 %>%
+  mutate(manuf_name = substr(full_11_12_13$brand_descr, 1, 3))
+
+rm(full_11, full_12, full_13, in_11_not_12, in_11_not_13, in_12_not_11, in_12_not_13, in_13_not_11, in_13_not_12,
+   store_id_11, store_id_12, store_id_13)
+```
+
+Create a vector that contains the `store_code_uc` codes that are assigned to multiple retailer codes. First, generate
+unique conbinations of `store_code_uc` and `retailer_code`, then group by `store_code_uc` and count the number of
+observations - this is the number of `retailer_code` values for the given `store_code_uc`. Then, filter for the 
+`store_code_uc` that have more than one retailer code and pull them into a vector.
+```{r}
+retailer_switchers <- full_11_12_13 %>%
+  distinct(store_code_uc, retailer_code) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_rets = n()) %>%
+  filter(n_rets > 1) %>%
+  select(store_code_uc) %>%
+  pull()
+```
+
+Using a similar approach as the previous chunk explains, create a tbl that contains the `store_code_uc` that have
+multiple `parent_code` values.
+```{r}
+parent_switchers <- full_11_12_13 %>%
+  distinct(store_code_uc, parent_code) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_parent = n()) %>%
+  filter(n_parent > 1) %>%
+  select(store_code_uc) %>%
+  pull()
+```
+
+Create one vector with the store codes to remove because they switch retailer or parent codes.
+```{r}
+switchers <- unique(c(parent_switchers, retailer_switchers))
+```
+
+Using the `switchers` vector, filter out the store codes that switch retailer or parent codes.
+```{r}
+full_11_12_13 <- full_11_12_13 %>%
+  filter(!store_code_uc %in% switchers)
+
+rm(parent_switchers, retailer_switchers, switchers)
+```
+
+Use `mutate` to replace the missing `retailer_code` values with the `parent_code`.
+```{r}
+full_11_12_13 <- full_11_12_13 %>%
+  mutate(retailer_code = ifelse(is.na(retailer_code), parent_code, retailer_code))
+```
+
+Create a tbl for each location of interest.
+```{r}
+nd_data <- full_11_12_13 %>%
+  filter(fips_state_descr == 'ND')
+
+mn_data <- full_11_12_13 %>%
+  filter(fips_state_descr == 'MN')
+
+mo_data <- full_11_12_13 %>%
+  filter(fips_state_descr == 'MO')
+
+il_data <- full_11_12_13 %>%
+  filter(fips_state_descr == 'IL')
+```
+
+Save `.RData` files for each of the locations of interest as well as the `full_11_12_13` file.
+```{r}
+save(full_11_12_13, file = 'frozen_dinners_clean.RData')
+save(nd_data, file = 'nd_frozen_dinners_clean.RData')
+save(mn_data, file = 'mn_frozen_dinners_clean.RData')
+save(mo_data, file = 'mo_frozen_dinners_clean.RData')
+save(il_data, file = 'il_frozen_dinners_clean.RData')
+```
+
+Captain: Nestle
+Validator: Conagra
