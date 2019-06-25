@@ -1,0 +1,159 @@
+---
+title: "Illinois Canned Soup Data Cleaning"
+author: "Cameron Bale"
+date: "6/25/2019"
+output: github_document
+---
+
+Load libraries.
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+
+Untar `canned_soup.tgz` to access files.
+```{r}
+untar("canned_soup.tgz")
+```
+
+Read in `movement` and `stores` files for 2011 and `products` master file.
+```{r}
+move_11 <- read_tsv("nielsen_extracts/RMS/2011/Movement_Files/0513_2011/1290_2011.tsv")
+
+stores_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv")
+
+products <- read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote="")
+```
+
+Create `full_11` by merging the `stores_11` file to the `movement` file, filtering for `F` (food) and for `IL`, then
+merge the `products` file to the `movement` file as well.
+```{r}
+full_11 <- move_11 %>%
+  left_join(stores_11, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr == 'IL') %>%
+  left_join(products, by ="upc")
+
+rm(stores_11, move_11)
+```
+
+Read in 2012 `movement` and `stores` files. 
+```{r}
+move_12 <- read_tsv("nielsen_extracts/RMS/2012/Movement_Files/0513_2012/1290_2012.tsv")
+
+stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv")
+```
+
+Create `full_12` the same way as `full_11`.
+```{r}
+full_12 <- move_12 %>%
+  left_join(stores_12, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr == 'IL') %>%
+  left_join(products, by ="upc")
+
+rm(stores_12, move_12)
+```
+
+Read in 2013 `movement` and `stores` files.
+```{r}
+move_13 <- read_tsv("nielsen_extracts/RMS/2013/Movement_Files/0513_2013/1290_2013.tsv")
+
+stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", guess_max = 20000)
+```
+
+Create `full_13` the same way as `full_11` and `full_12`.
+```{r}
+full_13 <- move_13 %>%
+  left_join(stores_13, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr == 'IL') %>%
+  left_join(products, by ="upc")
+
+rm(stores_13, move_13, products)
+```
+
+Combine `full_11`, `full_12`, and `full_13` into one file, `full_11_12_13` containing the data for all years.
+Change `week_end` variable to year-month-day format. Create variable `sales` which is `units` * `price`. Create 
+variable `manuf_name` from the first three characters of the `brand_descr` (brand description).
+```{r}
+full_11_12_13 <- full_11 %>%
+  bind_rows(full_12) %>%
+  bind_rows(full_13) %>%
+  mutate(week_end = ymd(week_end), 
+         sales = units * price,
+         manuf_name = substr(brand_descr, 1, 3))
+```
+
+Create tbls containing each distinct store code (`store_id_11/12/13`). Anti join those three tbls to get 6 tbls containing just the stores that only show up in 1 of the 2 years ex:`in_11_not_12`. Anti join those  tbls with the full movement file to remove the stores that only appear in 1 of 2 years. Create a new variable `manuf_name` which contains the first 3 characters of the brand_name and allows for easy identification of the manufacturers. Clear unnecessary files from memory.
+```{r}
+store_id_11 <- distinct(full_11, store_code_uc)
+store_id_12 <- distinct(full_12, store_code_uc)
+store_id_13 <- distinct(full_13, store_code_uc)
+
+in_11_not_12 <- anti_join(store_id_11, store_id_12, by = "store_code_uc")
+in_11_not_13 <- anti_join(store_id_11, store_id_13, by = "store_code_uc")
+in_12_not_11 <- anti_join(store_id_12, store_id_11, by = "store_code_uc")
+in_12_not_13 <- anti_join(store_id_12, store_id_13, by = "store_code_uc")
+in_13_not_11 <- anti_join(store_id_13, store_id_11, by = "store_code_uc")
+in_13_not_12 <- anti_join(store_id_13, store_id_12, by = "store_code_uc")
+
+full_11_12_13 <- full_11_12_13 %>%
+  anti_join(in_11_not_12, by = "store_code_uc") %>%
+  anti_join(in_11_not_13, by = "store_code_uc") %>%
+  anti_join(in_12_not_11, by = "store_code_uc") %>%
+  anti_join(in_12_not_13, by = "store_code_uc") %>%
+  anti_join(in_13_not_11, by = "store_code_uc") %>%
+  anti_join(in_13_not_12, by = "store_code_uc")
+
+rm(full_11, full_12, full_13, 
+   in_11_not_12, in_11_not_13, in_12_not_11, in_12_not_13, in_13_not_11, in_13_not_12,
+   store_id_11, store_id_12, store_id_13)
+```
+
+Create `retailer_switchers` by getting the distinct combinations of `store_code_uc` and `retailer_code`, grouping by
+`store_code_uc`, counting the number of `retailer_code` per `store_code_uc` and filtering for the `store_code_uc`
+with more than one `retailer_code`.
+```{r}
+retailer_switchers <- full_11_12_13 %>%
+  distinct(store_code_uc, retailer_code) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_rets = n()) %>%
+  filter(n_rets > 1) %>%
+  select(store_code_uc) %>%
+  pull()
+```
+
+Create `parent_switchers` the same way as `retailer_switchers`, except to find the `store_code_uc` that have multiple
+`parent_code` values.
+```{r}
+parent_switchers <- full_11_12_13 %>%
+  distinct(store_code_uc, parent_code) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_parents = n()) %>%
+  filter(n_parents > 1) %>%
+  select(store_code_uc) %>%
+  pull()
+```
+
+Create `switchers` vector, which contains each unique `store_code_uc` from `parent_switchers` and `retailer_switchers`.
+```{r}
+switchers <- unique(c(parent_switchers, retailer_switchers))
+```
+
+Using the `switchers` vector, filter out the store codes that switch retailer or parent codes.
+```{r}
+full_11_12_13 <- full_11_12_13 %>%
+  filter(!store_code_uc %in% switchers)
+
+rm(parent_switchers, retailer_switchers, switchers)
+```
+
+Use `mutate` to replace the missing `retailer_code` values with the `parent_code`.
+```{r}
+full_11_12_13 <- full_11_12_13 %>%
+  mutate(retailer_code = ifelse(is.na(retailer_code), parent_code, retailer_code))
+```
+
+Save the `full_11_12_13` file for future use.
+```{r}
+save(full_11_12_13, file = 'il_canned_soup_clean.RData')
+```
+
