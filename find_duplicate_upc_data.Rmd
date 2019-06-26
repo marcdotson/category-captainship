@@ -1,0 +1,44 @@
+---
+title: "Getting Data for Duplicated UPC Codes"
+author: "Cameron Bale"
+date: "6/25/2019"
+output: github_document
+---
+
+Load library.
+```{r}
+library(tidyverse)
+```
+
+Get `upc` codes that have duplicate entries.
+```{r}
+duplicate_codes <- products %>%
+  group_by(upc) %>%
+  summarize(dups = n()) %>%
+  filter(dups > 1) %>%
+  select(upc) %>%
+  pull()
+```
+
+Create a dataframe containing the `upc` codes with duplicate entries.
+```{r}
+duplicate_data <- products %>%
+  filter(upc %in% duplicate_codes)
+```
+
+Save the data containing the UPC's that are duplicated.
+```{r}
+save(duplicate_data, file = "duplicate_upc_data.RData")
+```
+
+
+
+
+
+
+
+
+
+
+
+
