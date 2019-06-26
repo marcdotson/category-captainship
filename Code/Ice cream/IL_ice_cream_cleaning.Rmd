@@ -1,0 +1,56 @@
+---
+title: "Illinois Ice Cream Data Cleaning"
+author: "Cameron Bale"
+date: "6/25/2019"
+output: github_document
+---
+
+Load libraries.
+```{r}
+library(tidyverse)
+library(lubridate)
+```
+
+Read in files for 2011 (and products file). Merge the data from the `stores` file and the `products` master file to the movement file. Filter for channel code `F`, which denotes `Food` and for Illinois `'IL'`.
+```{r}
+untar("ice_cream.tgz")
+
+move_11 <- read_tsv("nielsen_extracts/RMS/2011/Movement_Files/2005_2011/2672_2011.tsv")
+
+stores_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv")
+
+products <- read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote="")
+
+full_11 <- move_11 %>%
+  left_join(stores_11, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr == 'IL') %>%
+  inner_join(products, by ="upc")
+
+rm(move_11, stores_11)
+```
+
+Read in files for 2012 and create `full_12` the same way as `full_11`.
+```{r}
+move_12 <- read_tsv("nielsen_extracts/RMS/2012/Movement_Files/2005_2012/2672_2012.tsv")
+
+stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv")
+
+full_12 <- move_12 %>%
+  inner_join(stores_12, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr == 'IL') %>%
+  inner_join(products, by ="upc")
+
+rm(move_12, stores_12)
+```
+
+Read in files for 2013 and create `full_13` the same way as `full_12` and `full_11`.
+```{r}
+move_13 <- read_tsv("nielsen_extracts/RMS/2013/Movement_Files/2005_2013/2672_2013.tsv")
+
+stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", guess_max = 20000)
+
+full_13 <- move_13 %>%
+  inner_join(stores_13, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"DC")) %>%
+  inner_join(products, by ="upc")
+```
