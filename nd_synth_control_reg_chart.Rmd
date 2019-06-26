@@ -87,11 +87,11 @@ pb_other <- pb_other %>% bind_rows(missing)  %>% arrange(by=n_week_end)
 
 pb_agg <- pb_cap %>% bind_rows(pb_val) %>% bind_rows(pb_ctl) %>% bind_rows(pb_other)
 
-#rm(pb_cap, pb_val, pb_ctl, pb_other)
+rm(pb_cap, pb_val, pb_ctl, pb_other)
 ```
 
 Clean data for microsynth. Create `treat` variable, convert `week_end` to a numeric, and create a log sales variable. Run a synthetic control comparing the captain in 903 as the treated group to the captains in the other two retailers as the control group. Run Microsynth loop for log sales for each manufacturer (1-4), store results in a table. Save msynth results as `pb_results`.
-```{r}
+```{r, results="hide"}
 pb_agg <- pb_agg %>% mutate(treat=if_else(retailer_code==903, 1, 0)) %>% mutate(lsales=log(sales)) 
 
 pb_manufs <- unique(pb_agg$manuf)
@@ -153,11 +153,11 @@ ice_val <- ice_val %>% bind_rows(missing) %>% arrange(by=n_week_end)
 
 ice_agg <- ice_cap %>% bind_rows(ice_val) %>% bind_rows(ice_ctl) %>% bind_rows(ice_other)
 
-#rm(ice_cap, ice_val, ice_ctl, ice_other)
+rm(ice_cap, ice_val, ice_ctl, ice_other)
 ```
 
 Run the synthetic control for ice cream. Save the results as `ice_cream_results`. 
-```{r}
+```{r, results="hide"}
 ice_agg <- ice_agg %>% mutate(treat=if_else(retailer_code==903, 1, 0)) %>% mutate(lsales=log(sales)) 
 
 ice_manufs <- unique(ice_agg$manuf)
@@ -211,7 +211,7 @@ cereal_other <- nd_cereal%>% filter(!manuf_name %in% c("G M", "ANN", "CAS", "KEL
 
 cereal_agg <- cereal_cap %>% bind_rows(cereal_val) %>% bind_rows(cereal_other) %>% bind_rows(cereal_ctl) %>% mutate(n_week_end=as.numeric(week_end))
 
-#rm(cereal_cap, cereal_val, cereal_ctl, cereal_other)
+rm(cereal_cap, cereal_val, cereal_ctl, cereal_other)
 ```
 
 Run the synthetic control for ice cream. Save the results as `cereal_results`. 
@@ -281,7 +281,7 @@ n_val <- n_val %>% bind_rows(missing) %>% arrange(by=n_week_end)
 
 novel_agg <- n_cap %>% bind_rows(n_val) %>% bind_rows(n_ctl) %>% bind_rows(n_other)
 
-#rm(n_cap, n_val, n_ctl, n_other)
+rm(n_cap, n_val, n_ctl, n_other)
 ```
 
 Run the synthetic control for novelties. Save the results as `novel_results`. 
@@ -337,13 +337,59 @@ pick_ctl <- nd_pick %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, we
 
 pick_other <- nd_pick %>% filter(!manuf_name %in% c("VLA", "NAL", "EAR", "PEA", "GRE", "HOM", "BLA", "CTL")) %>% group_by(retailer_code, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf=4) 
 
-anti_join(pick_cap, pick_val, by=c("week_end", "retailer_code"))
+missing <- anti_join(pick_cap, pick_val, by=c("week_end", "retailer_code"))
 
-#need to impute missing data in pick_val
+missing <- missing %>% mutate(manuf=2) %>% mutate(sales=1)
 
-pick_agg <- pick_cap %>% bind_rows(pick_val) %>% bind_rows(pick_other) %>% bind_rows(pick_ctl)
+pick_val <- pick_val %>% bind_rows(missing)
 
-#rm(pick_cap, pick_val, pick_ctl, pick_other)
+pick_agg <- pick_cap %>% bind_rows(pick_val) %>% bind_rows(pick_ctl) %>% bind_rows(pick_other) %>%
+  mutate(n_week_end=as.numeric(week_end))
+
+rm(pick_cap, pick_val, pick_ctl, pick_other)
+```
+
+Run the synthetic control for pickles and olives. Save the results as `pick_results`. 
+```{r}
+pick_agg <- pick_agg %>% mutate(treat=if_else(retailer_code==903, 1, 0)) %>% mutate(lsales=log(sales)) 
+
+pick_manufs <- unique(pick_agg$manuf)
+
+msynth_results <- tibble()
+loop_results <- tibble()
+
+  for (j in seq_along(pick_manufs)) {
+    msynth_pvals <- c()
+    msynth_effects <- c()
+    manuf_data <- pick_agg %>% filter(manuf==pick_manufs[j])
+    msynth <- microsynth(data = as.data.frame(manuf_data),
+                           idvar = "retailer_code",
+                           intvar = "treat",
+                           timevar = "n_week_end",
+                           start.pre = 14975, 
+                           end.pre = 15556, 
+                           end.post = 16067,
+                           match.out = "lsales",
+                           match.out.min = "lsales",
+                           result.var="lsales", 
+                           omnibus.var="lsales", 
+                           test="twosided", 
+                           use.survey = FALSE,
+                           use.backup=TRUE)
+  
+  msynth_pvals <- c(msynth_pvals, msynth[[2]]$`16067`[1,4])
+  msynth_effects <- c(msynth_effects, msynth[[2]]$`16067`[1,3])
+  
+  loop_results <- tibble(
+    pval = msynth_pvals,
+    effect = msynth_effects,
+    manufacturer = pick_manufs[j]
+  )
+  
+  msynth_results <- msynth_results %>%
+    bind_rows(loop_results) }
+
+pick_results <- msynth_results %>% arrange(manufacturer)
 ```
 
 For canned soup: 
@@ -360,7 +406,7 @@ soup_other <- nd_soup %>% filter(!manuf_name %in% c("CAM", "CTL", "PRO")) %>% gr
 
 soup_agg <- soup_cap %>% bind_rows(soup_val) %>% bind_rows(soup_other) %>% bind_rows(soup_ctl) %>% mutate(n_week_end=as.numeric(week_end))
 
-#rm(soup_cap, soup_val, soup_ctl, soup_other)
+rm(soup_cap, soup_val, soup_ctl, soup_other)
 ```
 
 Run the synthetic control for soup. Save the results as `soup_results`. 
@@ -420,7 +466,7 @@ sj_other <- nd_sj %>% filter(!manuf_name %in% c("WEL", "CTL", "SMU","SAN","R W",
 
 sj_agg <- sj_cap %>% bind_rows(sj_val) %>% bind_rows(sj_ctl) %>% bind_rows(sj_other) %>% mutate(n_week_end=as.numeric(week_end))
 
-#rm(sj_cap, sj_val, sj_ctl, sj_other)
+rm(sj_cap, sj_val, sj_ctl, sj_other)
 ```
 
 Run the synthetic control for spreads and jams. Save the results as `sj_results`. 
@@ -485,7 +531,7 @@ lmeat_other <- nd_lmeat %>% filter(!manuf_name %in% c("OSC", "SAR", "CTL") | !br
 
 lmeat_agg <- lmeat_cap %>% bind_rows(lmeat_val) %>% bind_rows(lmeat_other) %>% bind_rows(lmeat_ctl) %>% mutate(n_week_end=as.numeric(week_end))
 
-#rm(lmeat_cap, lmeat_val, lmeat_ctl, lmeat_other)
+rm(lmeat_cap, lmeat_val, lmeat_ctl, lmeat_other)
 ```
 
 Run the synthetic control for lunchmeat. Save the results as `lmeat_results`. 
@@ -545,7 +591,7 @@ frozen_other <- nd_frozen %>% filter(!manuf_name %in% c("STO", "LEA", "BUI", "SW
 frozen_agg <- frozen_cap %>% bind_rows(frozen_val) %>% bind_rows(frozen_ctl) %>% bind_rows(frozen_other) %>%
   mutate(n_week_end=as.numeric(week_end))
 
-#rm(frozen_cap, frozen_val, frozen_ctl, frozen_other)
+rm(frozen_cap, frozen_val, frozen_ctl, frozen_other)
 ```
 
 Run the synthetic control for frozen dinners. Save the results as `frozen_dinners_results`. 
@@ -591,8 +637,37 @@ loop_results <- tibble()
 frozen_dinners_results <- msynth_results %>% arrange(manufacturer)
 ```
 
+Merge results for each category into one regression table for North Dakota. 
+```{r}
+Categories <- c("Cereal", "Frozen Dinners", "Ice Cream", "Lunchmeat", "Novelties", "Peanut Butter", "Pickles/Olives", "Spreads/Jams", "Canned Soup")
 
+Manufacturers <- c("Categories", "Captain", "Validator", "Private Label", "Other")
 
+c <- cereal_results %>% mutate(category="Cereal") %>% select(-pval)
 
+fd <- frozen_dinners_results %>% mutate(category="Frozen Dinners") %>% select(-pval)
+
+ic <- ice_cream_results %>% mutate(category="Ice Cream") %>% select(-pval)
+
+lm <- lmeat_results %>% mutate(category="Lunchmeat") %>% select(-pval)
+
+n <- novel_results %>% mutate(category="Novelties") %>% select(-pval)
+
+pb <- pb_results %>% mutate(category="Peanut Butter") %>% select(-pval)
+
+po <- pick_results %>% mutate(category="Pickles and Olives") %>% select(-pval)
+
+sj <- sj_results %>% mutate(category="Spreads and Jams") %>% select(-pval)
+
+sp <- soup_results %>% mutate(category="Canned Soup") %>% select(-pval)
+
+reg_table <- c %>% bind_rows(fd) %>% bind_rows(ic) %>% bind_rows(lm) %>% bind_rows(n) %>% bind_rows(pb) %>% bind_rows(po) %>% bind_rows(sj) %>% bind_rows(sp) %>% mutate(effect=round(effect, digits=3))
+
+reg_table <- reg_table %>% spread(key=manufacturer, value=effect) 
+
+names(reg_table) <- c("Category", "Captain", "Validator", "Private Label", "Aggregate Other")
+
+write.csv(reg_table, file="ND Synthetic Control Results.csv")
+```
 
 
