@@ -1,0 +1,55 @@
+---
+title: "Untitled"
+author: "Cameron Bale"
+date: "6/26/2019"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+untar("peanutbutter.tgz")
+```
+
+```{r}
+rms_11 <- read_tsv('rms_versions_2011.tsv')
+
+products <- read_tsv('products.tsv', quote = "")
+
+brand_vars <- read_tsv('brand_variations.tsv', quote = "")
+```
+
+```{r}
+rms_11 %>% 
+  left_join(products, by = c("upc", "upc_ver_uc"))
+```
+
+```{r}
+move_11 <- read_tsv("1421_2011.tsv")
+
+temp <- move_11 %>%
+  mutate(panel_year = substr(week_end, 1, 4)) %>%
+  left_join(rms_11, by = "upc")
+
+temp <- temp %>%
+  left_join(products, by = c("upc", "upc_ver_uc"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
