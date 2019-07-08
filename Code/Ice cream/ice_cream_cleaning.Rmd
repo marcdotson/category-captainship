@@ -13,17 +13,22 @@ library(lubridate)
 
 Read in files for 2011 (and products file). Merge the data from the `stores` file and the `products` master file to the movement file. Filter for channel code `F`, which denotes `Food` and for the 4 states where supervalue operates (North Dakota, Minnesota, Missouri, and D.C.).
 ```{r}
-untar ("ice_cream.tgz", list=TRUE)
 untar("ice_cream.tgz")
 
 move_11<-read_tsv("nielsen_extracts/RMS/2011/Movement_Files/2005_2011/2672_2011.tsv")
 stores_11<-read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv")
+stores_11 <- stores_11 %>% select(-fips_state_code, -fips_county_code, -dma_code)
+stores_11 <- stores_11 %>% filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL"))
+move_11 <- move_11 %>% filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL"))
+
 products<-read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote="")
-rms_10 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/rms_versions_2011.tsv")
+rms_10 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/rms_versions_2011.tsv")
 
 full_11 <- move_11 %>%
   left_join(stores_11, by = "store_code_uc") %>% 
-  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL")) %>%
+  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL"))
+
+%>%
   left_join(rms_11, by = 'upc') %>%
   left_join(products, by = c('upc', 'upc_ver_uc'))
 
