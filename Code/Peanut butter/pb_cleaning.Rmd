@@ -7,192 +7,159 @@ output: github_document
 
 This file cleans and merges the data for the peanut butter category. 
 
-Install packages.
+Install library.
 ```{r eval=FALSE, include=FALSE}
-install.packages("tidyverse")
-install.packages("tibbletime")
-install.packages("lubridate")
-install.packages("tsoutliers")
-install.packages("forecast")
-install.packages("rmarkdown")
-install.packages("purrr")
-install.packages("plyr")
-install.packages("cowplot")
+#install.packages("tidyverse")
+#install.packages("lubridate")
 ```
 
-Load library and increase memory limit.
+Load library.
 ```{r}
-library(cowplot)
-library(plyr)
 library(tidyverse)
-library(tibbletime)
 library(lubridate)
-library(tsoutliers)
-library(forecast)
-memory.limit(size = 50000)
 ```
 
-Unzip file.
+Read in files for 2011.
 ```{r}
-untar("peanutbutter.tgz", list = TRUE)
-
 untar("peanutbutter.tgz")
+untar("peanutbutter.tgz", list=TRUE)
 
 move_11 <- read_tsv("nielsen_extracts/RMS/2011/Movement_Files/0506_2011/1421_2011.tsv")
-
 stores_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv")
-
-move_12 <- read_tsv("nielsen_extracts/RMS/2012/Movement_Files/0506_2012/1421_2012.tsv")
-
-stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv")
-
-move_13 <- read_tsv("nielsen_extracts/RMS/2013/Movement_Files/0506_2013/1421_2013.tsv")
-
-stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", col_types = list(col_double(), col_double(),
-                        col_double(), col_double(), col_character(), col_character(), col_double(), col_character(), col_double(),
-                        col_character(), col_double(), col_character()))
-
 products <- read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote = "")
+rms_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/rms_versions_2011.tsv")
 ```
 
-
-Merge the data from the `stores` file and the `products` master file to the movement file for each year. Filter for channel code 'F', which denotes 'Food' and for the 4 states where supervalue operates (North Dakota, Minnesota, Missouri, and D.C.).
+Create `full_11` by joining the data in the stores file to the movement file, filtering for channel code `F` (Food)
+and states North Dakota, Minnesota, Missouri, and Illinois. Create `panel_year` variable to merge the rms versions
+file to the movement file. Then join the correct upc attributes from the products file to the movement file based on
+the upc code and the version from the rms file.
 ```{r}
 full_11 <- move_11 %>%
-  inner_join(stores_11, by ="store_code_uc") %>% 
-  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"DC")) %>%
-  inner_join(products, by ="upc")
+  left_join(stores_11, by = "store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL")) %>%
+  left_join(rms_11, by = 'upc') %>%
+  left_join(products, by = c('upc', 'upc_ver_uc'))
+
+rm(move_11, rms_11, stores_11)
+```
+
+Read in files for 2012 and create `full_12` the same way as `full_11`.
+```{r}
+move_12 <- read_tsv("nielsen_extracts/RMS/2012/Movement_Files/0506_2012/1421_2012.tsv")
+stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv")
+rms_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/rms_versions_2012.tsv")
 
 full_12 <- move_12 %>%
-  inner_join(stores_12, by ="store_code_uc") %>% 
-  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"DC")) %>%
-  inner_join(products, by ="upc")
+  left_join(stores_12, by = "store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL")) %>%
+  left_join(rms_12, by = 'upc') %>%
+  left_join(products, by = c('upc', 'upc_ver_uc'))
+
+rm(move_12, stores_12, rms_12)
+```
+
+Read in the files for 2013 and create `full_13` the same way as `full_12` and `full_11`.
+```{r}
+move_13 <- read_tsv("nielsen_extracts/RMS/2013/Movement_Files/0506_2013/1421_2013.tsv")
+stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", guess_max = 20000)
+rms_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/rms_versions_2013.tsv")
 
 full_13 <- move_13 %>%
-  inner_join(stores_13, by ="store_code_uc") %>% 
-  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"DC")) %>%
-  inner_join(products, by ="upc")
+  left_join(stores_13, by = "store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL")) %>%
+  left_join(rms_13, by = 'upc') %>%
+  left_join(products, by = c('upc', 'upc_ver_uc'))
+
+rm(move_13, stores_13, rms_13, products)
 ```
 
-Combine `full_11`, `full_12`, and `full_13` into one file, `full_11_12_13` containing the data for all years.
-Change `week_end` variable to year-month-day format. Create variable `sales` which is `units` * `price`.
+Combine all three years into one file, `full_data`. Change `week_end` variable to year-month-day format. Create
+variable `sales` which is `units` * `price`. Create variable for manufacturer from the first 3 digits of the brand
+description.
 ```{r}
-full_11_12_13 <- full_11 %>%
+full_data <- full_11 %>%
   bind_rows(full_12) %>%
   bind_rows(full_13) %>%
-  mutate(week_end = ymd(week_end), sales = units * price)
+  mutate(week_end = ymd(week_end), 
+         sales = units * price,
+         manuf_name = substr(brand_descr, 1, 3))
+
+rm(full_11, full_12, full_13)
 ```
 
-Create tbls containing each distinct store code (`store_id_11/12/13`). Anti join those tbls to get 6 more tbls containing just the stores that only show up in 1 of the years ex: `in_11_not_12`. Anti join those tbls with the full movement file to remove the stores that only appear in 1 of the years. Create a new variable `manuf_name` which contains the first 3 characters of the brand_name and allows for easy identification of the 
-manufacturers. Save the full movement file and remove unneccesary files from memory.
+Create `missing_stores` vector which contains the store codes that don't show up in all years in the data. First,
+get each distinct combination of `store_code_uc` and `panel_year`, then summarize by counting the number of years
+for each store, filter for the `store_code_uc` that have less than four years, and store those codes in the vector
+`missing_stores`.
 ```{r}
-store_id_11 <- distinct(full_11, store_code_uc)
-store_id_12 <- distinct(full_12, store_code_uc)
-store_id_13 <- distinct(full_13, store_code_uc)
-
-in_11_not_12 <- anti_join(store_id_11, store_id_12, by = "store_code_uc")
-in_11_not_13 <- anti_join(store_id_11, store_id_13, by = "store_code_uc")
-in_12_not_11 <- anti_join(store_id_12, store_id_11, by = "store_code_uc")
-in_12_not_13 <- anti_join(store_id_12, store_id_13, by = "store_code_uc")
-in_13_not_11 <- anti_join(store_id_13, store_id_11, by = "store_code_uc")
-in_13_not_12 <- anti_join(store_id_13, store_id_12, by = "store_code_uc")
-
-full_11_12_13 <- full_11_12_13 %>%
-  anti_join(in_11_not_12, by = "store_code_uc") %>%
-  anti_join(in_11_not_13, by = "store_code_uc") %>%
-  anti_join(in_12_not_11, by = "store_code_uc") %>%
-  anti_join(in_12_not_13, by = "store_code_uc") %>%
-  anti_join(in_13_not_11, by = "store_code_uc") %>%
-  anti_join(in_13_not_12, by = "store_code_uc")
-
-full_11_12_13 <- full_11_12_13 %>%
-  mutate(manuf_name = substr(full_11_12_13$brand_descr, 1, 3))
-
-save(full_11_12_13, file = "full_11_12_13.RData")
-
-rm(full_11, full_12, full_13, in_11_not_12, in_11_not_13, in_12_not_11, in_12_not_13, in_13_not_11, in_13_not_12,
-   store_id_11, store_id_12, store_id_13, move_11, move_12, move_13, products, stores_11, stores_12, stores_13)
+missing_stores <- full_data %>%
+  distinct(store_code_uc, panel_year) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_years = n()) %>%
+  filter(n_years < 3) %>%
+  select(store_code_uc) %>%
+  pull()
 ```
 
-Create vector `stores` that contains each distinct store in the full movement file. Define a vector `retail_switchers` that will contain the codes for every store that switches retail codes between 2011, 2012, or 2013. The 'for' loop finds these codes and stores them in `retail_switchers`.
+Create a vector that contains the `store_code_uc` codes that are assigned to multiple retailer codes. First, generate
+unique conbinations of `store_code_uc` and `retailer_code`, then group by `store_code_uc` and count the number of
+observations - this is the number of `retailer_code` values for the given `store_code_uc`. Then, filter for the 
+`store_code_uc` that have more than one retailer code and pull them into a vector.
 ```{r}
-stores <- unique(full_11_12_13$store_code_uc)
-
-retail_switchers <- vector("numeric", length = 0)
-
-for (i in seq_along(stores)) {
-  
-  ind_store_sales <- full_11_12_13 %>%
-    filter(store_code_uc == stores[i])
-  
-  switcher_test <- unique(ind_store_sales$retailer_code)
-  
-  if (length(switcher_test) > 1) {
-    
-    retail_switchers <- append(retail_switchers, stores[i])
-    
-  }
-}
+retailer_switchers <- full_data %>%
+  distinct(store_code_uc, retailer_code) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_rets = n()) %>%
+  filter(n_rets > 1) %>%
+  select(store_code_uc) %>%
+  pull()
 ```
 
-Define a vector `parent_switchers` that will contain the codes for every store that switches parent codes between 2011, 2012, or 2013. The 'for' loop finds these codes and stores them in `parent_switchers`.
+Using a similar approach as the previous chunk explains, create a tbl that contains the `store_code_uc` that have
+multiple `parent_code` values.
 ```{r}
-parent_switchers <- vector("numeric", length = 0)
-
-for (i in seq_along(stores)) {
-  
-  ind_store_sales <- full_11_12_13 %>%
-    filter(store_code_uc == stores[i])
-  
-  switcher_test <- unique(ind_store_sales$parent_code)
-  
-  if (length(switcher_test) > 1) {
-    
-    parent_switchers <- append(parent_switchers, stores[i])
-    
-  }
-}
+parent_switchers <- full_data %>%
+  distinct(store_code_uc, parent_code) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_parent = n()) %>%
+  filter(n_parent > 1) %>%
+  select(store_code_uc) %>%
+  pull()
 ```
 
-Print `retail_switchers` and `parent_switchers`.
+Create one vector with the store codes to remove because they switch retailer or parent codes or they don't show up
+in all the years in the data.
 ```{r}
-retail_switchers
-
-parent_switchers
+remove_stores <- unique(c(parent_switchers, retailer_switchers, missing_stores))
 ```
 
-Create tbl `switchers` that contains the data for every store that switches retail or parent codes. Filter out these stores from the full movement file.
+Using the `remove_stores` vector, filter out the store codes that switch retailer or parent codes or don't show up
+in all the years in the data.
 ```{r}
-switchers <- full_11_12_13 %>%
-  filter(store_code_uc %in% retail_switchers | store_code_uc %in% parent_switchers)
+full_data <- full_data %>%
+  filter(!store_code_uc %in% remove_stores)
 
-full_11_12_13 <- full_11_12_13 %>%
-  anti_join(switchers, by = "store_code_uc")
+rm(parent_switchers, retailer_switchers, remove_stores, missing_stores)
 ```
 
-Filter `full_11_12_13` for observations where `retailer_code` != NA and save as tbl `retail_no_NA`. 
-Filter `full_11_12_13` for observations where `retailer_code` = NA and impute `parent_code` to replace those values, then recombine with the observations that originally had a `retailer_code`.
+Use `mutate` to replace missing `retailer_code` values with the `parent_code`.
 ```{r}
-retail_no_NA <- full_11_12_13 %>%
-  filter(!is.na(retailer_code))
-
-full_11_12_13 <- full_11_12_13 %>%
-  filter(is.na(retailer_code)) %>%
-  mutate(retailer_code = parent_code) %>%
-  bind_rows(retail_no_NA)
+full_data <- full_data %>%
+  mutate(retailer_code = ifelse(is.na(retailer_code), parent_code, retailer_code))
 ```
 
 Save the peanut butter data. Filter for each state and save state data sets. 
 ```{r}
-save(full_11_12_13, file="pb_clean.RData")
+save(full_data, file="pb_clean.RData")
 
-mn_data <- full_11_12_13 %>% filter(fips_state_descr=="MN")
-dc_data <- full_11_12_13 %>% filter(fips_state_descr=="DC")
-mo_data <- full_11_12_13 %>% filter(fips_state_descr=="MO")
-nd_data <- full_11_12_13 %>% filter(fips_state_descr=="ND")
+mn_data <- full_data %>% filter(fips_state_descr=="MN")
+il_data <- full_data %>% filter(fips_state_descr=="IL")
+mo_data <- full_data %>% filter(fips_state_descr=="MO")
+nd_data <- full_data %>% filter(fips_state_descr=="ND")
 
 save(mn_data, file="mn_pb_clean.RData")
-save(dc_data, file="dc_pb_clean.RData")
+save(il_data, file="il_pb_clean.RData")
 save(mo_data, file="mo_pb_clean.RData")
 save(nd_data, file="nd_pb_clean.RData")
 ```
