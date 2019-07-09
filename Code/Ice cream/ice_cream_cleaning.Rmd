@@ -19,13 +19,14 @@ move_11<-read_tsv("nielsen_extracts/RMS/2011/Movement_Files/2005_2011/2672_2011.
 stores_11<-read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv")
 stores_11 <- stores_11 %>% select(-fips_state_code, -fips_county_code, -dma_code)
 stores_11 <- stores_11 %>% filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL"))
-move_11 <- move_11 %>% filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL"))
 
-products<-read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote="")
+products <-read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote="")
 rms_10 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/rms_versions_2011.tsv")
 
 full_11 <- move_11 %>%
-  left_join(stores_11, by = "store_code_uc") %>% 
+  left_join(stores_11, by = "store_code_uc") 
+
+%>% 
   filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL"))
 
 %>%
