@@ -10,7 +10,11 @@ The code loads in the cleaned data sets created by the data cleaning markdowns. 
 
 ## Retailer Test Markdowns
 #### These files run a series of microsynth tests in hopes of uncovering the treated retailers. 
-The code loads in the cleaned data set for the state. 
+The retailer tests are done for sales and market share. Each file runs a series of synthetic controls, each retailer in a location is selected to be the treated retailer. The results for the true treated retailer should be positive and significant, allowing us to select out the treated retailer among the tested retailers. The synthetic controls were run at different levels (manufacturer, store). The most informative retailer test was the retailer combination test. This test paired each retailer with another retailer in the area. One was selected as the treated retailer and the other as the control. Note that retailers with only one store could not act as the synthetic control, and those combinations were dropped. We expected to see positive significant effects in the cases where the true treated retailer was selected as treated and negative significant effects when the true treated retailer was selected as the control.
+
+## Store Location Analysis
+### This file explains how we selected the treated retailers. 
+This file goes through each state explaining why we believe the selected retailer is the actual treated retailer. The file does contain some code for analyzing store location and the number of stores in a state. 
 
 
 ## UPC Chart Markdowns
