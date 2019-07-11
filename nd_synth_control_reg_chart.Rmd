@@ -661,7 +661,7 @@ sj <- sj_results %>% mutate(category="Spreads and Jams") %>% select(-pval)
 
 sp <- soup_results %>% mutate(category="Canned Soup") %>% select(-pval)
 
-reg_table <- c %>% bind_rows(fd) %>% bind_rows(ic) %>% bind_rows(lm) %>% bind_rows(n) %>% bind_rows(pb) %>% bind_rows(po) %>% bind_rows(sj) %>% bind_rows(sp) %>% mutate(effect=round(effect, digits=3))
+reg_table <- fd %>% bind_rows(c) %>% bind_rows(ic) %>% bind_rows(lm) %>% bind_rows(n) %>% bind_rows(pb) %>% bind_rows(po) %>% bind_rows(sj) %>% bind_rows(sp) %>% mutate(effect=round(effect, digits=3))
 
 reg_table <- reg_table %>% spread(key=manufacturer, value=effect) 
 
