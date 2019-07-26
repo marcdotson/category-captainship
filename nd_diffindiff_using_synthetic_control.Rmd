@@ -1,0 +1,110 @@
+---
+title: "North Dakota Diff in diff model using synthetic control from Microsynth"
+output: github_document
+---
+
+Load libraries and data for each category in ND. 
+```{r}
+library(tidyverse)
+library(microsynth)
+
+load(here::here("..", "nd_cereal_clean.RData"))
+nd_cereal <- nd_data
+
+load(here::here("..", "nd_spreads_jams_clean.RData"))
+nd_sj <- nd_data 
+
+load(here::here("..", "nd_can_soup_clean.RData"))
+nd_soup <- nd_data
+
+load(here::here("..", "nd_ice_cream_clean.RData"))
+nd_ice_cream <- nd_data
+
+load(here::here("..", "nd_lunchmeat_clean.RData"))
+nd_lmeat <- nd_data
+
+load(here::here("..", "nd_novel_clean.RData"))
+nd_novel <- nd_data
+
+load(here::here("..", "nd_pb_clean.RData"))
+nd_pb <- nd_data
+
+load(here::here("..", "nd_pickles_olives_clean.RData"))
+nd_pick <- nd_data
+
+load(here::here("..", "nd_frozen_dinners_clean.RData"))
+nd_frozen <- nd_data 
+
+rm(nd_data)
+```
+
+Check each category for weeks with missing sales. 
+```{r}
+nd_cereal <- nd_cereal %>% filter(week_end>"2010-12-31")
+
+nd_cereal_slim <- nd_cereal %>% select(upc, sales, week_end, manuf_name)
+
+cereal_weeks <- nd_cereal %>% distinct(upc, week_end) %>% group_by(upc) %>% summarise(n_weeks=n())
+
+missing_weeks <- cereal_weeks %>% filter(n_weeks<157)
+
+upc <- missing_weeks$upc
+
+full_dates <- nd_cereal %>% filter(upc=="001600027503") %>% select(week_end) %>% distinct(week_end) 
+
+test <- nd_cereal_slim %>% distinct(upc, manuf_name) %>% group_by(upc) %>% summarise(n_man=n())
+
+test %>% filter(n_man>1)
+
+#loop starts here
+
+upc_1 <- nd_cereal_slim %>% filter(upc=="001600016183")  
+  
+missing <- anti_join(full_dates, upc_1, by="week_end") %>% mutate(sales=0, upc="001600016183", manuf_name="G M")
+
+nd_cereal_slim <- nd_cereal_slim %>% bind_rows(missing)
+```
+
+Attempt to turn above code into a loop. 
+```{r}
+for(i in seq_along(upc)) {
+  
+ missing_upc <- nd_cereal_slim %>% filter(upc==upc[i])
+ 
+ missing <- anti_join(full_dates, missing_upc, by="week_end") %>% mutate(sales=0, upc=upc[i], manuf_name=)
+ 
+ nd_cereal_slim <- nd_cereal_slim %>% bind_rows(missing)
+ 
+}
+```
+
+Try for spreads and jams. 
+```{r}
+nd_sj_slim <- nd_sj %>% select(upc, sales, week_end, manuf_name)
+
+sj_weeks <- nd_sj %>% distinct(upc, week_end) %>% group_by(upc) %>% summarise(n_weeks=n())
+
+missing_weeks <- sj_weeks %>% filter(n_weeks<157)
+
+upc <- missing_weeks$upc
+
+full_dates <- nd_sj %>% filter(upc=="005150002219") %>% select(week_end) %>% distinct(week_end) 
+```
+
+```{r}
+for(i in seq_along(upc)) {
+  
+ missing_upc <- nd_sj_slim %>% filter(upc==upc[i])
+ 
+ missing <- anti_join(full_dates, missing_upc, by="week_end") %>% mutate(sales=0, upc=upc[i], manuf_name = "OK")
+ 
+ nd_sj_slim <- nd_sj_slim %>% bind_rows(missing)
+ 
+}
+```
+
+
+
+
+
+
