@@ -38,58 +38,38 @@ nd_frozen <- nd_data
 rm(nd_data)
 ```
 
-Create a smaller data set with only the variables we are interested in. Create `upc_weeks` which reports the number of weeks each upc has sales for in store code X and filters for upcs that have less than 157 weeks. Check that the maximum number of weeks is not greater than 157. 
+Create a smaller data set with only the variables we are interested in, and filter for observations only after 2010. 
 ```{r}
-cereal_slim <- nd_cereal %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31") %>% mutate(n_date=as.numeric(week_end))
+cereal_slim <- nd_cereal %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
+```
 
-full_weeks <- cereal_slim %>% distinct(week_end)
+Create a `stores` vector that contains the unique store codes in the `cereal_slim` dataset. Create `full_weeks` which is a list of the 157 `week_end`s from 2011-2013. Write a loop that goes along each store and upc adding in zero sales values for upcs with missing dates. Bind those missing upc dates and sales back into the main data `cereal_slim`. 
+```{r}
+stores <- unique(cereal_slim$store_code_uc)
 
-partial_upc <- cereal_slim %>% filter(store_code_uc==187110) %>% distinct(upc, week_end) %>% group_by(upc) %>%
+full_weeks <- cereal_slim %>% distinct(week_end) 
+
+for(i in seq_along(stores)) {
+  
+  partial_upc <- cereal_slim %>% filter(store_code_uc==stores[i]) %>% distinct(upc, week_end) %>% group_by(upc) %>%
   summarise(n_weeks=n()) %>% filter(n_weeks <157) %>% select(upc) %>% pull()
+  
+  for(j in seq_along(partial_upc)) {
+    
+    single_upc <- cereal_slim %>% filter(store_code_uc==stores[i], upc==partial_upc[j])
+    
+    manufacturer <- unique(single_upc$manuf_name)
 
-single_upc <- cereal_slim %>% filter(store_code_uc==187110, upc=="001600014772")
+    missing_weeks <- full_weeks %>% anti_join(single_upc, by="week_end") %>% mutate(sales=0, store_code_uc=stores[i],
+      upc=partial_upc[j], manuf_name=manufacturer)
 
-full_weeks %>% anti_join(single_upc, by="week_end")
-
-
+    cereal_slim <- cereal_slim %>% bind_rows(missing_weeks)
+    
+  }
+}
 ```
 
 
-
-
-Check each category for weeks with missing sales. 
-```{r}
-nd_cereal <- nd_cereal %>% filter(week_end>"2010-12-31")
-
-nd_cereal_slim <- nd_cereal %>% select(upc, sales, week_end, manuf_name, store_code_uc)
-
-cereal_weeks <- nd_cereal %>% distinct(store_code_uc, upc, week_end) %>% group_by(store_code_uc, upc) %>% summarise(n_weeks=n())
-
-missing_weeks <- cereal_weeks %>% filter(n_weeks<157)
-
-full_dates <- nd_cereal %>% filter(upc=="001600027503") %>% select(week_end) %>% distinct(week_end) 
-
-store <- unique(missing_weeks$store_code_uc)
-```
-
-Turn into a loop
-```{r}
-for(i in seq_along(store)) {
-
-  single_store <- nd_cereal_slim %>% filter(store_code_uc==store[i])
-  
-  upcode <- unique(single_store$upc)
-  
-for(k in seq_along(upcode)) {
-  
- missing_upc <- single_store %>% filter(upc==upcode[k])
- 
- missing <- anti_join(full_dates, missing_upc, by="week_end") %>% mutate(sales=0, upc=upcode[k], manuf_name=unique(missing_upc$manuf_name))
- 
- nd_cereal_slim <- nd_cereal_slim %>% bind_rows(missing)
- 
-}}
-```
 
 
 
