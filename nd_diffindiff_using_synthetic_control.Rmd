@@ -38,69 +38,57 @@ nd_frozen <- nd_data
 rm(nd_data)
 ```
 
+Create a smaller data set with only the variables we are interested in. Create `upc_weeks` which reports the number of weeks each upc has sales for in store code X and filters for upcs that have less than 157 weeks. Check that the maximum number of weeks is not greater than 157. 
+```{r}
+cereal_slim <- nd_cereal %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31") %>% mutate(n_date=as.numeric(week_end))
+
+full_weeks <- cereal_slim %>% distinct(week_end)
+
+partial_upc <- cereal_slim %>% filter(store_code_uc==187110) %>% distinct(upc, week_end) %>% group_by(upc) %>%
+  summarise(n_weeks=n()) %>% filter(n_weeks <157) %>% select(upc) %>% pull()
+
+single_upc <- cereal_slim %>% filter(store_code_uc==187110, upc=="001600014772")
+
+full_weeks %>% anti_join(single_upc, by="week_end")
+
+
+```
+
+
+
+
 Check each category for weeks with missing sales. 
 ```{r}
 nd_cereal <- nd_cereal %>% filter(week_end>"2010-12-31")
 
-nd_cereal_slim <- nd_cereal %>% select(upc, sales, week_end, manuf_name)
+nd_cereal_slim <- nd_cereal %>% select(upc, sales, week_end, manuf_name, store_code_uc)
 
-cereal_weeks <- nd_cereal %>% distinct(upc, week_end) %>% group_by(upc) %>% summarise(n_weeks=n())
+cereal_weeks <- nd_cereal %>% distinct(store_code_uc, upc, week_end) %>% group_by(store_code_uc, upc) %>% summarise(n_weeks=n())
 
 missing_weeks <- cereal_weeks %>% filter(n_weeks<157)
 
-upc <- missing_weeks$upc
-
 full_dates <- nd_cereal %>% filter(upc=="001600027503") %>% select(week_end) %>% distinct(week_end) 
 
-test <- nd_cereal_slim %>% distinct(upc, manuf_name) %>% group_by(upc) %>% summarise(n_man=n())
-
-test %>% filter(n_man>1)
-
-#loop starts here
-
-upc_1 <- nd_cereal_slim %>% filter(upc=="001600016183")  
-  
-missing <- anti_join(full_dates, upc_1, by="week_end") %>% mutate(sales=0, upc="001600016183", manuf_name="G M")
-
-nd_cereal_slim <- nd_cereal_slim %>% bind_rows(missing)
+store <- unique(missing_weeks$store_code_uc)
 ```
 
-Attempt to turn above code into a loop. 
+Turn into a loop
 ```{r}
-for(i in seq_along(upc)) {
+for(i in seq_along(store)) {
+
+  single_store <- nd_cereal_slim %>% filter(store_code_uc==store[i])
   
- missing_upc <- nd_cereal_slim %>% filter(upc==upc[i])
+  upcode <- unique(single_store$upc)
+  
+for(k in seq_along(upcode)) {
+  
+ missing_upc <- single_store %>% filter(upc==upcode[k])
  
- missing <- anti_join(full_dates, missing_upc, by="week_end") %>% mutate(sales=0, upc=upc[i], manuf_name=)
+ missing <- anti_join(full_dates, missing_upc, by="week_end") %>% mutate(sales=0, upc=upcode[k], manuf_name=unique(missing_upc$manuf_name))
  
  nd_cereal_slim <- nd_cereal_slim %>% bind_rows(missing)
  
-}
-```
-
-Try for spreads and jams. 
-```{r}
-nd_sj_slim <- nd_sj %>% select(upc, sales, week_end, manuf_name)
-
-sj_weeks <- nd_sj %>% distinct(upc, week_end) %>% group_by(upc) %>% summarise(n_weeks=n())
-
-missing_weeks <- sj_weeks %>% filter(n_weeks<157)
-
-upc <- missing_weeks$upc
-
-full_dates <- nd_sj %>% filter(upc=="005150002219") %>% select(week_end) %>% distinct(week_end) 
-```
-
-```{r}
-for(i in seq_along(upc)) {
-  
- missing_upc <- nd_sj_slim %>% filter(upc==upc[i])
- 
- missing <- anti_join(full_dates, missing_upc, by="week_end") %>% mutate(sales=0, upc=upc[i], manuf_name = "OK")
- 
- nd_sj_slim <- nd_sj_slim %>% bind_rows(missing)
- 
-}
+}}
 ```
 
 
