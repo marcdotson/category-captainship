@@ -43,7 +43,7 @@ Create a smaller data set with only the variables we are interested in, and filt
 cereal_slim <- nd_cereal %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
 ```
 
-Create a `stores` vector that contains the unique store codes in the `cereal_slim` dataset. Create `full_weeks` which is a list of the 157 `week_end`s from 2011-2013. Write a loop that goes along each store and upc adding in zero sales values for upcs with missing dates. Bind those missing upc dates and sales back into the main data `cereal_slim`. 
+Create a `stores` vector that contains the unique store codes in the `cereal_slim` dataset. Create `full_weeks` which is a list of the 157 `week_end`s from 2011-2013. Write a loop that goes along each store and upc adding in zero sales values for upcs with missing dates (less than 157 weeks). Bind those missing upc dates and sales back into the main data `cereal_slim`. 
 ```{r}
 stores <- unique(cereal_slim$store_code_uc)
 
@@ -67,7 +67,110 @@ for(i in seq_along(stores)) {
     
   }
 }
+
+rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_cereal)
 ```
+
+Replicate for the other categories: 
+
+Spreads & Jams
+```{r}
+sj_slim <- nd_sj %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
+
+stores <- unique(sj_slim$store_code_uc)
+
+full_weeks <- sj_slim %>% distinct(week_end) 
+
+for(i in seq_along(stores)) {
+  
+  partial_upc <- sj_slim %>% filter(store_code_uc==stores[i]) %>% distinct(upc, week_end) %>% group_by(upc) %>%
+  summarise(n_weeks=n()) %>% filter(n_weeks <157) %>% select(upc) %>% pull()
+  
+  for(j in seq_along(partial_upc)) {
+    
+    single_upc <- sj_slim %>% filter(store_code_uc==stores[i], upc==partial_upc[j])
+    
+    manufacturer <- unique(single_upc$manuf_name)
+
+    missing_weeks <- full_weeks %>% anti_join(single_upc, by="week_end") %>% mutate(sales=0, store_code_uc=stores[i],
+      upc=partial_upc[j], manuf_name=manufacturer)
+
+    sj_slim <- sj_slim %>% bind_rows(missing_weeks)
+    
+  }
+}
+
+rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_sj)
+```
+
+Canned soup
+```{r}
+soup_slim <- nd_soup %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
+
+stores <- unique(soup_slim$store_code_uc)
+
+full_weeks <- soup_slim %>% distinct(week_end) 
+
+for(i in seq_along(stores)) {
+  
+  partial_upc <- soup_slim %>% filter(store_code_uc==stores[i]) %>% distinct(upc, week_end) %>% group_by(upc) %>%
+  summarise(n_weeks=n()) %>% filter(n_weeks <157) %>% select(upc) %>% pull()
+  
+  for(j in seq_along(partial_upc)) {
+    
+    single_upc <- soup_slim %>% filter(store_code_uc==stores[i], upc==partial_upc[j])
+    
+    manufacturer <- unique(single_upc$manuf_name)
+
+    missing_weeks <- full_weeks %>% anti_join(single_upc, by="week_end") %>% mutate(sales=0, store_code_uc=stores[i],
+      upc=partial_upc[j], manuf_name=manufacturer)
+
+    soup_slim <- soup_slim %>% bind_rows(missing_weeks)
+    
+  }
+}
+
+rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_soup)
+```
+
+Ice Cream
+```{r}
+icecream_slim <- nd_ice_cream %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
+
+stores <- unique(icecream_slim$store_code_uc)
+
+full_weeks <- icecream_slim %>% distinct(week_end) 
+
+for(i in seq_along(stores)) {
+  
+  partial_upc <- icecream_slim %>% filter(store_code_uc==stores[i]) %>% distinct(upc, week_end) %>% group_by(upc) %>%
+  summarise(n_weeks=n()) %>% filter(n_weeks <157) %>% select(upc) %>% pull()
+  
+  for(j in seq_along(partial_upc)) {
+    
+    single_upc <- icecream_slim %>% filter(store_code_uc==stores[i], upc==partial_upc[j])
+    
+    manufacturer <- unique(single_upc$manuf_name)
+
+    missing_weeks <- full_weeks %>% anti_join(single_upc, by="week_end") %>% mutate(sales=0, store_code_uc=stores[i],
+      upc=partial_upc[j], manuf_name=manufacturer)
+
+    icecream_slim <- icecream_slim %>% bind_rows(missing_weeks)
+    
+  }
+}
+
+#rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_ice_cream)
+```
+
+
+
+
+
+
+
+
+
 
 
 
