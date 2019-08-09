@@ -163,24 +163,33 @@ for(i in seq_along(stores)) {
 #rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_ice_cream)
 ```
 
-Count finds the number of manufacturers per UPC. The upcs with two manufacturers create an error. There are two upcs with the problem and they are stores in `problem_child` and `problem_child_full` (full contains all the variables). One of the two upcs has the manufacturer change (ITT to KEM) from 2011 to 2012 and it occurs in multiple stores. The other upc has the manufacturer change (Starbucks to UNI) from 2011 to 2012, but occurs in only one store. We want to see how large these upc's sales are relative to the other upcs in their respective stores. If their sales are relatively small, we will drop them, if they are large... `agg` aggregates the sales for upcs within stores across the three years and ranks them by sales. 
+Count finds the number of manufacturers per UPC. The upcs with two manufacturers create an error. There are two upcs with the problem and they are stored in `problem_child`. One of the two upcs has the manufacturer change (ITT to KEM) from 2011 to 2012 and it occurs in multiple stores. The other upc has the manufacturer change (Starbucks to UNI) from 2011 to 2012, but occurs in only one store. 
 ```{r}
 count <- nd_ice_cream %>% distinct(upc, manuf_name) %>% group_by(upc) %>% summarise(n_manuf=n())
-count %>% filter(n_manuf>1)
+
+count %>% filter(n_manuf>1) #upcs with more than 1 manufacturer
 
 problem_child <- icecream_slim %>% filter(upc %in% c("004148303571", "007756708215"))
 
 problem_child <- problem_child %>% arrange(store_code_uc, upc)
-
-prob_child_full <- nd_ice_cream %>% filter(upc %in% c("004148303571", "007756708215")) %>% arrange(store_code_uc, upc)
-
-#see how problem child's sales compare to the rest of the upcs
-
-agg <- icecream_slim %>% group_by(store_code_uc, upc) %>% summarise(sum_sales=sum(sales)) %>% arrange(store_code_uc, desc(sum_sales))
-
-agg %>% filter(store_code_uc==790659, upc %in% c("004148303571", "007756708215"))
 ```
 
+We want to see how large these upc's sales are relative to the other upcs in their respective stores. If their sales are relatively small, we will drop them, if they are large...? `agg` aggregates the sales for upcs within stores across the three years and ranks them by sales. The for loop creates `upc_rankings` which shows how the sales for the problem upcs compare to their store total. 
+```{r}
+agg <- icecream_slim %>% group_by(store_code_uc, upc) %>% summarise(sum_sales=sum(sales)) %>% arrange(store_code_uc, desc(sum_sales))
+
+upc_rankings <- data.frame()
+
+problem_stores <- unique(problem_child$store_code_uc)
+
+for(i in seq_along(problem_stores)) {
+  agg_store <- agg %>% filter(store_code_uc==problem_stores[i]) %>% mutate(rank=dense_rank(desc(sum_sales)))
+  total_rank <- max(agg_store$rank)
+  agg_upc <- agg_store %>% filter(upc %in% c("004148303571", "007756708215")) 
+  agg_upc$total=total_rank
+  upc_rankings <- upc_rankings %>% bind_rows(agg_upc)
+}
+```
 
 
 
