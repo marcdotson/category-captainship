@@ -133,10 +133,27 @@ for(i in seq_along(stores)) {
 rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_soup)
 ```
 
-Ice Cream #upcs that switch manufacturers, need to fix the error
+Ice Cream
+
+Delete observations where the upc has two different manufacturer (see code below for why)
 ```{r}
 icecream_slim <- nd_ice_cream %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
 
+drops_1 <- icecream_slim %>% filter(upc=="004148303571" & store_code_uc %in% c(790659, 791868, 7326857, 7329996, 8135076))
+
+drops_2 <- icecream_slim %>% filter(upc=="007756708215" & store_code_uc==4471593)
+
+drops <- drops_1 %>% bind_rows(drops_2)
+
+chr <- c("store_code_uc", "upc")
+
+icecream_slim <- anti_join(x=icecream_slim, y=drops, by=chr)
+
+rm(drops, drops_1, drops_2)
+```
+
+Same loop as above
+```{r}
 stores <- unique(icecream_slim$store_code_uc)
 
 full_weeks <- icecream_slim %>% distinct(week_end) 
@@ -160,7 +177,7 @@ for(i in seq_along(stores)) {
   }
 }
 
-#rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_ice_cream)
+rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_ice_cream)
 ```
 
 Count finds the number of manufacturers per UPC. The upcs with two manufacturers create an error. There are two upcs with the problem and they are stored in `problem_child`. One of the two upcs has the manufacturer change (ITT to KEM) from 2011 to 2012 and it occurs in multiple stores. The other upc has the manufacturer change (Starbucks to UNI) from 2011 to 2012, but occurs in only one store. 
@@ -189,10 +206,85 @@ for(i in seq_along(problem_stores)) {
   agg_upc$total=total_rank
   upc_rankings <- upc_rankings %>% bind_rows(agg_upc)
 }
+
+rm(agg_store, total_rank, agg_upc, problem_child, agg, count)
 ```
 
+Lunchmeat
 
+Delete observations where the upc has two different manufacturer (see code below for why)
+```{r}
+lmeat_slim <- nd_lmeat %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
 
+#fix upc and store codes to match ones we want to drop in lunchmeat
+
+drops_1 <- lmeat_slim %>% filter(upc=="004148303571" & store_code_uc %in% c(790659, 791868, 7326857, 7329996, 8135076))
+
+drops_2 <- lmeat_slim %>% filter(upc=="007756708215" & store_code_uc==4471593)
+
+drops <- drops_1 %>% bind_rows(drops_2)
+
+chr <- c("store_code_uc", "upc")
+
+lmeat_slim <- anti_join(x=lmeat_slim, y=drops, by=chr)
+
+rm(drops, drops_1, drops_2)
+```
+
+Same loop as above
+```{r}
+stores <- unique(lmeat_slim$store_code_uc)
+
+full_weeks <- lmeat_slim %>% distinct(week_end) 
+
+for(i in seq_along(stores)) {
+  
+  partial_upc <- lmeat_slim %>% filter(store_code_uc==stores[i]) %>% distinct(upc, week_end) %>% group_by(upc) %>%
+  summarise(n_weeks=n()) %>% filter(n_weeks <157) %>% select(upc) %>% pull()
+  
+  for(j in seq_along(partial_upc)) {
+    
+    single_upc <- lmeat_slim %>% filter(store_code_uc==stores[i], upc==partial_upc[j])
+    
+    manufacturer <- unique(single_upc$manuf_name)
+
+    missing_weeks <- full_weeks %>% anti_join(single_upc, by="week_end") %>% mutate(sales=0, store_code_uc=stores[i],
+      upc=partial_upc[j], manuf_name=manufacturer)
+
+    lmeat_slim <- lmeat_slim %>% bind_rows(missing_weeks)
+    
+  }
+}
+
+#rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_lmeat)
+```
+
+See description above (fixing mutliple manufacturer for 1 upc problem)
+```{r}
+count <- nd_lmeat%>% distinct(upc, manuf_name) %>% group_by(upc) %>% summarise(n_manuf=n())
+
+count %>% filter(n_manuf>1) #upcs with more than 1 manufacturer
+
+problem_child <- lmeat_slim %>% filter(upc=="007010001590")
+
+problem_child <- problem_child %>% arrange(store_code_uc, upc)
+
+agg <- lmeat_slim %>% group_by(store_code_uc, upc) %>% summarise(sum_sales=sum(sales)) %>% arrange(store_code_uc, desc(sum_sales))
+
+upc_rankings <- data.frame()
+
+problem_stores <- unique(problem_child$store_code_uc)
+
+for(i in seq_along(problem_stores)) {
+  agg_store <- agg %>% filter(store_code_uc==problem_stores[i]) %>% mutate(rank=dense_rank(desc(sum_sales)))
+  total_rank <- max(agg_store$rank)
+  agg_upc <- agg_store %>% filter(upc=="007010001590") 
+  agg_upc$total=total_rank
+  upc_rankings <- upc_rankings %>% bind_rows(agg_upc)
+}
+
+rm(agg_store, total_rank, agg_upc, problem_child, agg, count)
+```
 
 
 
