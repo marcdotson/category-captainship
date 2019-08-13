@@ -38,6 +38,27 @@ nd_frozen <- nd_data
 rm(nd_data)
 ```
 
+Get retail code to merge with slim data for creating `treat` variable.
+```{r}
+r_cereal <- nd_cereal %>% distinct(store_code_uc, retailer_code)
+
+r_sj <- nd_sj %>% distinct(store_code_uc, retailer_code)
+
+r_soup <- nd_soup %>% distinct(store_code_uc, retailer_code)
+
+r_icecream <- nd_ice_cream %>% distinct(store_code_uc, retailer_code)
+
+r_lmeat <- nd_lmeat %>% distinct(store_code_uc, retailer_code)
+
+r_novel <- nd_novel %>% distinct(store_code_uc, retailer_code)
+
+r_pb <- nd_pb %>% distinct(store_code_uc, retailer_code)
+
+r_pickles <- nd_pick %>% distinct(store_code_uc, retailer_code)
+
+r_frozen <- nd_frozen %>% distinct(store_code_uc, retailer_code)
+```
+
 Create a smaller data set with only the variables we are interested in, and filter for observations only after 2010. 
 ```{r}
 cereal_slim <- nd_cereal %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
@@ -181,7 +202,7 @@ rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_
 ```
 
 Count finds the number of manufacturers per UPC. The upcs with two manufacturers create an error. There are two upcs with the problem and they are stored in `problem_child`. One of the two upcs has the manufacturer change (ITT to KEM) from 2011 to 2012 and it occurs in multiple stores. The other upc has the manufacturer change (Starbucks to UNI) from 2011 to 2012, but occurs in only one store. 
-```{r}
+```{r, eval=FALSE}
 count <- nd_ice_cream %>% distinct(upc, manuf_name) %>% group_by(upc) %>% summarise(n_manuf=n())
 
 count %>% filter(n_manuf>1) #upcs with more than 1 manufacturer
@@ -192,7 +213,7 @@ problem_child <- problem_child %>% arrange(store_code_uc, upc)
 ```
 
 We want to see how large these upc's sales are relative to the other upcs in their respective stores. If their sales are relatively small, we will drop them, if they are large...? `agg` aggregates the sales for upcs within stores across the three years and ranks them by sales. The for loop creates `upc_rankings` which shows how the sales for the problem upcs compare to their store total. 
-```{r}
+```{r, eval=FALSE}
 agg <- icecream_slim %>% group_by(store_code_uc, upc) %>% summarise(sum_sales=sum(sales)) %>% arrange(store_code_uc, desc(sum_sales))
 
 upc_rankings <- data.frame()
@@ -216,19 +237,7 @@ Delete observations where the upc has two different manufacturer (see code below
 ```{r}
 lmeat_slim <- nd_lmeat %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
 
-#fix upc and store codes to match ones we want to drop in lunchmeat
-
-drops_1 <- lmeat_slim %>% filter(upc=="004148303571" & store_code_uc %in% c(790659, 791868, 7326857, 7329996, 8135076))
-
-drops_2 <- lmeat_slim %>% filter(upc=="007756708215" & store_code_uc==4471593)
-
-drops <- drops_1 %>% bind_rows(drops_2)
-
-chr <- c("store_code_uc", "upc")
-
-lmeat_slim <- anti_join(x=lmeat_slim, y=drops, by=chr)
-
-rm(drops, drops_1, drops_2)
+lmeat_slim <- lmeat_slim %>% filter(upc!="007010001590")
 ```
 
 Same loop as above
@@ -256,11 +265,11 @@ for(i in seq_along(stores)) {
   }
 }
 
-#rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_lmeat)
+rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_lmeat)
 ```
 
 See description above (fixing mutliple manufacturer for 1 upc problem)
-```{r}
+```{r, eval=FALSE}
 count <- nd_lmeat%>% distinct(upc, manuf_name) %>% group_by(upc) %>% summarise(n_manuf=n())
 
 count %>% filter(n_manuf>1) #upcs with more than 1 manufacturer
@@ -286,12 +295,224 @@ for(i in seq_along(problem_stores)) {
 rm(agg_store, total_rank, agg_upc, problem_child, agg, count)
 ```
 
+Drop UPCs with multiple manufacturers for Novelties (see below for why)
+```{r}
+novel_slim <- nd_novel %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
 
+drops_1 <- novel_slim %>% filter(upc=="004100013675" & store_code_uc %in% c(187110, 790659, 791868, 4471593, 7326857, 7329996, 8135076))
 
+drops_2 <- novel_slim %>% filter(upc=="007054701498" & store_code_uc %in% c(187110, 7329678, 7570754))
 
+drops_3 <- novel_slim %>% filter(upc=="007756700489" & store_code_uc %in% c(187110, 7329678, 7570754))
 
+drops <- drops_1 %>% bind_rows(drops_2) %>% bind_rows(drops_3)
 
+chr <- c("store_code_uc", "upc")
 
+novel_slim <- anti_join(x=novel_slim, y=drops, by=chr)
+
+rm(drops, drops_1, drops_2, drops_3)
+```
+
+Novelties
+```{r}
+stores <- unique(novel_slim$store_code_uc)
+
+full_weeks <- novel_slim %>% distinct(week_end) 
+
+for(i in seq_along(stores)) {
+  
+  partial_upc <- novel_slim %>% filter(store_code_uc==stores[i]) %>% distinct(upc, week_end) %>% group_by(upc) %>%
+  summarise(n_weeks=n()) %>% filter(n_weeks <157) %>% select(upc) %>% pull()
+  
+  for(j in seq_along(partial_upc)) {
+    
+    single_upc <- novel_slim %>% filter(store_code_uc==stores[i], upc==partial_upc[j])
+    
+    manufacturer <- unique(single_upc$manuf_name)
+
+    missing_weeks <- full_weeks %>% anti_join(single_upc, by="week_end") %>% mutate(sales=0, store_code_uc=stores[i],
+      upc=partial_upc[j], manuf_name=manufacturer)
+
+    novel_slim <- novel_slim %>% bind_rows(missing_weeks)
+    
+  }
+}
+
+rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_novel)
+```
+
+```{r, eval=FALSE}
+count <- nd_novel %>% distinct(upc, manuf_name) %>% group_by(upc) %>% summarise(n_manuf=n())
+
+count %>% filter(n_manuf>1) #upcs with more than 1 manufacturer
+
+problem_child <- novel_slim %>% filter(upc %in% c("004100013675", "007054701498", "007756700489"))
+
+problem_child <- problem_child %>% arrange(store_code_uc, upc)
+
+agg <- novel_slim %>% group_by(store_code_uc, upc) %>% summarise(sum_sales=sum(sales)) %>% arrange(store_code_uc, desc(sum_sales))
+
+upc_rankings <- data.frame()
+
+problem_stores <- unique(problem_child$store_code_uc)
+
+for(i in seq_along(problem_stores)) {
+  agg_store <- agg %>% filter(store_code_uc==problem_stores[i]) %>% mutate(rank=dense_rank(desc(sum_sales)))
+  total_rank <- max(agg_store$rank)
+  agg_upc <- agg_store %>% filter(upc %in% c("004100013675", "007054701498", "007756700489")) 
+  agg_upc$total=total_rank
+  upc_rankings <- upc_rankings %>% bind_rows(agg_upc)
+}
+
+rm(agg_store, total_rank, agg_upc, problem_child, agg, count)
+```
+
+Peanut butter
+```{r}
+pb_slim <- nd_pb %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
+
+stores <- unique(pb_slim$store_code_uc)
+
+full_weeks <- pb_slim %>% distinct(week_end) 
+
+for(i in seq_along(stores)) {
+  
+  partial_upc <- pb_slim %>% filter(store_code_uc==stores[i]) %>% distinct(upc, week_end) %>% group_by(upc) %>%
+  summarise(n_weeks=n()) %>% filter(n_weeks <157) %>% select(upc) %>% pull()
+  
+  for(j in seq_along(partial_upc)) {
+    
+    single_upc <- pb_slim %>% filter(store_code_uc==stores[i], upc==partial_upc[j])
+    
+    manufacturer <- unique(single_upc$manuf_name)
+
+    missing_weeks <- full_weeks %>% anti_join(single_upc, by="week_end") %>% mutate(sales=0, store_code_uc=stores[i],
+      upc=partial_upc[j], manuf_name=manufacturer)
+
+    pb_slim <- pb_slim %>% bind_rows(missing_weeks)
+    
+  }
+}
+
+rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_pb)
+```
+
+Pickles and Olives
+```{r}
+pickles_slim <- nd_pick %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
+
+stores <- unique(pickles_slim$store_code_uc)
+
+full_weeks <- pickles_slim %>% distinct(week_end) 
+
+for(i in seq_along(stores)) {
+  
+  partial_upc <- pickles_slim %>% filter(store_code_uc==stores[i]) %>% distinct(upc, week_end) %>% group_by(upc) %>%
+  summarise(n_weeks=n()) %>% filter(n_weeks <157) %>% select(upc) %>% pull()
+  
+  for(j in seq_along(partial_upc)) {
+    
+    single_upc <- pickles_slim %>% filter(store_code_uc==stores[i], upc==partial_upc[j])
+    
+    manufacturer <- unique(single_upc$manuf_name)
+
+    missing_weeks <- full_weeks %>% anti_join(single_upc, by="week_end") %>% mutate(sales=0, store_code_uc=stores[i],
+      upc=partial_upc[j], manuf_name=manufacturer)
+
+    pickles_slim <- pickles_slim %>% bind_rows(missing_weeks)
+    
+  }
+}
+
+rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_pick)
+```
+
+Frozen Dinners
+```{r}
+froz_din_slim <- nd_frozen %>% select(store_code_uc, week_end, upc, sales, manuf_name) %>% filter(week_end > "2010-12-31")
+
+drops <- froz_din_slim %>% filter(upc=="003666906148" & store_code_uc %in% c(187110, 4471593, 7329678, 7570754))
+
+chr <- c("store_code_uc", "upc")
+
+froz_din_slim <- anti_join(x=froz_din_slim, y=drops, by=chr)
+
+rm(drops)
+```
+
+```{r}
+stores <- unique(froz_din_slim$store_code_uc)
+
+full_weeks <- froz_din_slim %>% distinct(week_end) 
+
+for(i in seq_along(stores)) {
+  
+  partial_upc <- froz_din_slim %>% filter(store_code_uc==stores[i]) %>% distinct(upc, week_end) %>% group_by(upc) %>%
+  summarise(n_weeks=n()) %>% filter(n_weeks <157) %>% select(upc) %>% pull()
+  
+  for(j in seq_along(partial_upc)) {
+    
+    single_upc <- froz_din_slim %>% filter(store_code_uc==stores[i], upc==partial_upc[j])
+    
+    manufacturer <- unique(single_upc$manuf_name)
+
+    missing_weeks <- full_weeks %>% anti_join(single_upc, by="week_end") %>% mutate(sales=0, store_code_uc=stores[i],
+      upc=partial_upc[j], manuf_name=manufacturer)
+
+    froz_din_slim <- froz_din_slim %>% bind_rows(missing_weeks)
+    
+  }
+}
+
+rm(stores, full_weeks, partial_upc, single_upc, manufacturer, missing_weeks, nd_frozen)
+```
+
+```{r, eval=FALSE}
+count <- nd_frozen %>% distinct(upc, manuf_name) %>% group_by(upc) %>% summarise(n_manuf=n())
+
+count %>% filter(n_manuf>1) #upcs with more than 1 manufacturer
+
+problem_child <- froz_din_slim %>% filter(upc=="003666906148")
+
+problem_child <- problem_child %>% arrange(store_code_uc, upc)
+
+agg <- froz_din_slim %>% group_by(store_code_uc, upc) %>% summarise(sum_sales=sum(sales)) %>% arrange(store_code_uc, desc(sum_sales))
+
+upc_rankings <- data.frame()
+
+problem_stores <- unique(problem_child$store_code_uc)
+
+for(i in seq_along(problem_stores)) {
+  agg_store <- agg %>% filter(store_code_uc==problem_stores[i]) %>% mutate(rank=dense_rank(desc(sum_sales)))
+  total_rank <- max(agg_store$rank)
+  agg_upc <- agg_store %>% filter(upc=="003666906148") 
+  agg_upc$total=total_rank
+  upc_rankings <- upc_rankings %>% bind_rows(agg_upc)
+}
+
+rm(agg_store, total_rank, agg_upc, problem_child, agg, count)
+```
+
+Leftjoin the retailer code with the slim data. 
+```{r}
+cereal_slim <- cereal_slim %>% left_join(r_cereal, by="store_code_uc")
+froz_din_slim <- froz_din_slim %>% left_join(r_frozen, by="store_code_uc")
+icecream_slim <- icecream_slim %>% left_join(r_icecream, by="store_code_uc")
+lmeat_slim <- lmeat_slim %>% left_join(r_lmeat, by="store_code_uc")
+novel_slim <- novel_slim %>% left_join(r_novel, by="store_code_uc")
+pb_slim <- pb_slim %>% left_join(r_pb, by="store_code_uc")
+pickles_slim <- pickles_slim %>% left_join(r_pickles, by="store_code_uc")
+sj_slim <- sj_slim %>% left_join(r_sj, by="store_code_uc")
+soup_slim <- soup_slim %>% left_join(r_soup, by="store_code_uc")
+
+rm(r_cereal, r_frozen, r_icecream, r_lmeat, r_novel, r_pb, r_pickles, r_sj, r_soup)
+```
+
+Create a `treat` variable that is 1 for treated stores and 0 for control stores (treated retailer is 903). 
+```{r}
+cereal_slim <- cereal_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>2012-01-01, 1, 0))
+```
 
 
 
