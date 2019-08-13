@@ -1,7 +1,5 @@
 ---
 title: "Cereal Data Cleaning"
-author: "Morgan Bale"
-date: "5/13/2019"
 output: github_document
 ---
 
