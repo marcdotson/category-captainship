@@ -494,7 +494,7 @@ for(i in seq_along(problem_stores)) {
 rm(agg_store, total_rank, agg_upc, problem_child, agg, count)
 ```
 
-Leftjoin the retailer code with the slim data. 
+Leftjoin the retailer code with the slim data. Save the data, so we don't have to rerun all the above code. 
 ```{r}
 cereal_slim <- cereal_slim %>% left_join(r_cereal, by="store_code_uc")
 froz_din_slim <- froz_din_slim %>% left_join(r_frozen, by="store_code_uc")
@@ -507,14 +507,61 @@ sj_slim <- sj_slim %>% left_join(r_sj, by="store_code_uc")
 soup_slim <- soup_slim %>% left_join(r_soup, by="store_code_uc")
 
 rm(r_cereal, r_frozen, r_icecream, r_lmeat, r_novel, r_pb, r_pickles, r_sj, r_soup)
+
+save(cereal_slim, file="cereal_slim.RData")
+save(froz_din_slim, file="froz_din_slim.RData")
+save(icecream_slim, file="icecream_slim.RData")
+save(lmeat_slim, file="lmeat_slim.RData")
+save(novel_slim, file="novel_slim.RData")
+save(pb_slim, file="pb_slim.RData")
+save(pickles_slim, file="pickles_slim.RData")
+save(sj_slim, file="sj_slim.Rdata")
+save(soup_slim, file="soup_slim.RData")
+```
+
+START HERE ONCE DATA IS SAVED. Upload the data. 
+```{r}
+load(here::here("..", "cereal_slim.RData"))
+load(here::here("..", "froz_din_slim.RData"))
+load(here::here("..", "icecream_slim.RData"))
+load(here::here("..", "lmeat_slim.RData"))
+load(here::here("..", "novel_slim.RData"))
+load(here::here("..", "pb_slim.RData"))
+load(here::here("..", "pickles_slim.RData"))
+load(here::here("..", "sj_slim.RData"))
+load(here::here("..", "soup_slim.RData"))
 ```
 
 Create a `treat` variable that is 1 for treated stores and 0 for control stores (treated retailer is 903). 
 ```{r}
-cereal_slim <- cereal_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>2012-01-01, 1, 0))
+cereal_slim <- cereal_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-01-01", 1, 0))
+
+froz_din_slim <- froz_din_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-03-12", 1, 0))
+
+icecream_slim <- icecream_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-03-26", 1, 0))
+
+lmeat_slim <- lmeat_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-07-16", 1, 0))
+
+novel_slim <- novel_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-03-26", 1, 0))
+
+pb_slim <- pb_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-07-16", 1, 0))
+
+pickles_slim <- pickles_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-10-08", 1, 0))
+
+sj_slim <- sj_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-07-16", 1, 0))
+
+soup_slim <- soup_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-07-30", 1, 0))
 ```
 
+Cut the observations down to 26 weeks before and after the treatment date. 
+```{r}
 
+```
+
+Use microsynth to extract the weighted synthetic control values to use in our own diff in diff model. 
+```{r}
+
+```
 
 
 
