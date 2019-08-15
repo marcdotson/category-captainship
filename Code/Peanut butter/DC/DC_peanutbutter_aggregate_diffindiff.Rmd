@@ -1,6 +1,6 @@
 ---
 title: "DC Peanut Butter Aggregate Diff-in-Diff"
-output: word_document
+output: github_document
 ---
 This initial analysis is performed on the peanut butter data and looks at individual treated store sales compared to
 an aggregate of the sales of the other stores in the market (DC Area). As of now this is only for the sales of 
@@ -148,3 +148,4 @@ ggplot(ols_data, aes(week_end, scaled_sales, col = factor(store_code_uc))) + geo
   geom_vline(xintercept = as.numeric(as.Date("2012-07-16"))) + 
   ggtitle("Scaled Sales for treated store and aggregate") + theme(legend.position="bottom")
 ```
+

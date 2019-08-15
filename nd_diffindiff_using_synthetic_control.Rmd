@@ -553,15 +553,198 @@ sj_slim <- sj_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-
 soup_slim <- soup_slim %>% mutate(treat=if_else(retailer_code==903 & week_end>"2012-07-30", 1, 0))
 ```
 
-Cut the observations down to 26 weeks before and after the treatment date. 
+Cut the observations down to 26 weeks before and after the treatment date. Create pre and post windows that are easily changeable, for when we decide the number of weeks we want. The pre and post windows are used for all the categories. Create category slimmer datasets that are cut down to X weeks before and after treatment. Most of the exact treatment dates are not available, so the week_end immediately following the treatment date is chosen as the treatment date. For example, cereal treatment date is 01/01/2012 (which is not in the data), so 01/07/12 is chosen. 
 ```{r}
+pre_window <- -26
 
+post_window <- 26
 ```
+
+cereal
+```{r}
+cereal_weeks <- cereal_slim %>% distinct(week_end) %>% arrange(by=week_end)
+
+cereal_treat_date <- which("2012-01-07"==cereal_weeks$week_end)
+
+upper_date <- pull(cereal_weeks[cereal_treat_date + post_window,])
+
+lower_date <- pull(cereal_weeks[cereal_treat_date + pre_window,])
+
+cereal_slimmer <- cereal_slim %>% filter(week_end<upper_date & week_end>lower_date)
+
+rm(cereal_weeks, upper_date, lower_date)
+```
+
+frozen dinners
+```{r}
+frozen_weeks <- froz_din_slim %>% distinct(week_end) %>% arrange(by=week_end)
+
+frozen_treat_date <- which("2012-03-17"==frozen_weeks$week_end)
+
+upper_date <- pull(frozen_weeks[frozen_treat_date + post_window,])
+
+lower_date <- pull(frozen_weeks[frozen_treat_date + pre_window,])
+
+froz_din_slimmer <- froz_din_slim %>% filter(week_end<upper_date & week_end>lower_date)
+
+rm(frozen_weeks, upper_date, lower_date)
+```
+
+ice cream
+```{r}
+icecream_weeks <- icecream_slim %>% distinct(week_end) %>% arrange(by=week_end)
+
+icecream_treat_date <- which("2012-03-31"==icecream_weeks$week_end)
+
+upper_date <- pull(icecream_weeks[icecream_treat_date + post_window,])
+
+lower_date <- pull(icecream_weeks[icecream_treat_date + pre_window,])
+
+icecream_slimmer <- icecream_slim %>% filter(week_end<upper_date & week_end>lower_date)
+
+rm(icecream_weeks, upper_date, lower_date)
+```
+
+lunchmeat
+```{r}
+lmeat_weeks <- lmeat_slim %>% distinct(week_end) %>% arrange(by=week_end)
+
+lmeat_treat_date <- which("2012-07-21"==lmeat_weeks$week_end)
+
+upper_date <- pull(lmeat_weeks[lmeat_treat_date + post_window,])
+
+lower_date <- pull(lmeat_weeks[lmeat_treat_date + pre_window,])
+
+lmeat_slimmer <- lmeat_slim %>% filter(week_end<upper_date & week_end>lower_date)
+
+rm(lmeat_weeks, upper_date, lower_date)
+```
+
+novelties
+```{r}
+novel_weeks <- novel_slim %>% distinct(week_end) %>% arrange(by=week_end)
+
+novel_treat_date <- which("2012-03-31"==novel_weeks$week_end)
+
+upper_date <- pull(novel_weeks[novel_treat_date + post_window,])
+
+lower_date <- pull(novel_weeks[novel_treat_date + pre_window,])
+
+novel_slimmer <- novel_slim %>% filter(week_end<upper_date & week_end>lower_date)
+
+rm(novel_weeks, upper_date, lower_date)
+```
+
+peanut butter
+```{r}
+pb_weeks <- pb_slim %>% distinct(week_end) %>% arrange(by=week_end)
+
+pb_treat_date <- which("2012-07-21"==pb_weeks$week_end)
+
+upper_date <- pull(pb_weeks[pb_treat_date + post_window,])
+
+lower_date <- pull(pb_weeks[pb_treat_date + pre_window,])
+
+pb_slimmer <- pb_slim %>% filter(week_end<upper_date & week_end>lower_date)
+
+rm(pb_weeks, upper_date, lower_date)
+```
+
+pickles
+```{r}
+pickles_weeks <- pickles_slim %>% distinct(week_end) %>% arrange(by=week_end)
+
+pick_treat_date <- which("2012-10-13"==pickles_weeks$week_end)
+
+upper_date <- pull(pickles_weeks[pick_treat_date + post_window,])
+
+lower_date <- pull(pickles_weeks[pick_treat_date + pre_window,])
+
+pickles_slimmer <- pickles_slim %>% filter(week_end<upper_date & week_end>lower_date)
+
+rm(pickles_weeks, upper_date, lower_date)
+```
+
+spreads and jams
+```{r}
+sj_weeks <- sj_slim %>% distinct(week_end) %>% arrange(by=week_end)
+
+sj_treat_date <- which("2012-07-21"==sj_weeks$week_end)
+
+upper_date <- pull(sj_weeks[sj_treat_date + post_window,])
+
+lower_date <- pull(sj_weeks[sj_treat_date + pre_window,])
+
+sj_slimmer <- sj_slim %>% filter(week_end<upper_date & week_end>lower_date)
+
+rm(sj_weeks, upper_date, lower_date)
+```
+
+canned soup
+```{r}
+soup_weeks <- soup_slim %>% distinct(week_end) %>% arrange(by=week_end)
+
+soup_treat_date <- which("2012-08-04"==soup_weeks$week_end)
+
+upper_date <- pull(soup_weeks[soup_treat_date + post_window,])
+
+lower_date <- pull(soup_weeks[soup_treat_date + pre_window,])
+
+soup_slimmer <- soup_slim %>% filter(week_end<upper_date & week_end>lower_date)
+
+rm(soup_weeks, upper_date, lower_date)
+```
+
+Aggregate manufacturers that are not captain, private label, or validator and label them as "other". Aggregate sales for captain, private label and validator respectively as well. 
+
+cereal
+```{r}
+other <- cereal_slimmer %>% filter(!manuf_name %in% c("G M", "KEL", "CTL")) %>% mutate(manuf_name="other") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%  summarise(sales=sum(sales))
+
+captain <- cereal_slimmer %>% filter(manuf_name=="G M") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>% summarise(sales=sum(sales))
+
+val <- cereal_slimmer %>% filter(manuf_name=="KEL") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>% summarise(sales=sum(sales))
+
+ctl <- cereal_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>% summarise(sales=sum(sales))
+
+cereal_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
+
+rm(other, captain, val, ctl)
+```
+
+frozen dinners
+```{r}
+other <- froz_din_slimmer %>% filter(!manuf_name %in% c("STO", "LEA", "BUI", "SWE", "CON", "CTL")) %>% mutate(manuf_name="other") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%  summarise(sales=sum(sales))
+
+captain <- froz_din_slimmer %>% filter(manuf_name %in% c("STO", "LEA", "BUI", "SWE")) %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>% summarise(sales=sum(sales))
+
+val <- froz_din_slimmer %>% filter(manuf_name=="CON") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>% summarise(sales=sum(sales))
+
+ctl <- froz_din_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>% summarise(sales=sum(sales))
+
+froz_din_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
+
+#rm(other, captain, val, ctl)
+```
+
 
 Use microsynth to extract the weighted synthetic control values to use in our own diff in diff model. 
+
+cereal
 ```{r}
+stores <- unique(cereal_slimmer$store_code_uc)
+
+manufs <- unique(cereal_slimmer$manuf_name)
+
 
 ```
+
+
+
+
+
+
+
 
 
 
