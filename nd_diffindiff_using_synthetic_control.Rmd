@@ -712,17 +712,47 @@ cereal_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
 rm(other, captain, val, ctl)
 ```
 
-frozen dinners
+frozen dinners (the validator is only in one store in the data, which is not the treated store, so we can't do analysis on the frozen dinners validator)
 ```{r}
 other <- froz_din_slimmer %>% filter(!manuf_name %in% c("STO", "LEA", "BUI", "SWE", "CON", "CTL")) %>% mutate(manuf_name="other") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%  summarise(sales=sum(sales))
 
-captain <- froz_din_slimmer %>% filter(manuf_name %in% c("STO", "LEA", "BUI", "SWE")) %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>% summarise(sales=sum(sales))
+captain <- froz_din_slimmer %>% filter(manuf_name %in% c("STO", "LEA", "BUI", "SWE")) %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="NES")
 
-val <- froz_din_slimmer %>% filter(manuf_name=="CON") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>% summarise(sales=sum(sales))
+val <- froz_din_slimmer %>% filter(manuf_name=="CON") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="CON")
 
-ctl <- froz_din_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>% summarise(sales=sum(sales))
+ctl <- froz_din_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="CTL")
 
 froz_din_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
+
+rm(other, captain, val, ctl)
+```
+
+ice cream
+```{r}
+other <- icecream_slimmer %>% filter(!manuf_name %in% c("HAA", "TAL", "BEN", "BRE", "DRE", "CTL")) %>% mutate(manuf_name="other") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%  summarise(sales=sum(sales))
+
+captain <- icecream_slimmer %>% filter(manuf_name %in% c("BEN", "TAL", "BRE")) %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="UNI")
+
+val <- icecream_slimmer %>% filter(manuf_name %in% c("DRE", "HAA")) %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="NES")
+
+ctl <- icecream_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="CTL")
+
+icecream_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
+
+rm(other, captain, val, ctl)
+```
+
+lunchmeat 
+```{r}
+other <- lmeat_slimmer %>% filter(!manuf_name %in% c("SAR", "OSC", "CTL")) %>% mutate(manuf_name="other") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%  summarise(sales=sum(sales))
+
+captain <- lmeat_slimmer %>% filter(manuf_name=="OSC") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="OSC")
+
+val <- lmeat_slimmer %>% filter(manuf_name=="SAR") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="SAR")
+
+ctl <- lmeat_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="CTL")
+
+lmeat_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
 
 #rm(other, captain, val, ctl)
 ```
