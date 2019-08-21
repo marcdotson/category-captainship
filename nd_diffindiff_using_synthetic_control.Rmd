@@ -742,7 +742,7 @@ icecream_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ct
 rm(other, captain, val, ctl)
 ```
 
-lunchmeat 
+lunchmeat (missing observations for validator)
 ```{r}
 other <- lmeat_slimmer %>% filter(!manuf_name %in% c("SAR", "OSC", "CTL")) %>% mutate(manuf_name="other") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%  summarise(sales=sum(sales))
 
@@ -754,9 +754,83 @@ ctl <- lmeat_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, s
 
 lmeat_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
 
-#rm(other, captain, val, ctl)
+rm(other, captain, val, ctl)
 ```
 
+novelties (missing observations for captain, there are 5 stores in 903 and the captain is only showing up in 3 of them)
+```{r}
+other <- novel_slimmer %>% filter(!manuf_name %in% c("HAA", "TAL", "BEN", "BRE", "DRE", "CTL")) %>% mutate(manuf_name="other") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%  summarise(sales=sum(sales))
+
+captain <- novel_slimmer %>% filter(manuf_name %in% c("BEN", "TAL", "BRE")) %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="UNI")
+
+val <- novel_slimmer %>% filter(manuf_name %in% c("DRE", "HAA")) %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="NES")
+
+ctl <- novel_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="CTL")
+
+novel_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
+
+rm(other, captain, val, ctl)
+```
+
+peanut butter
+```{r}
+other <- pb_slimmer %>% filter(!manuf_name %in% c("UNI", "SMU", "CTL")) %>% mutate(manuf_name="other") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%  summarise(sales=sum(sales))
+
+captain <- pb_slimmer %>% filter(manuf_name=="SKI") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="UNI")
+
+val <- pb_slimmer %>% filter(manuf_name=="SMU") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="SMU")
+
+ctl <- pb_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="CTL")
+
+pb_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
+
+rm(other, captain, val, ctl)
+```
+
+pickles and olives
+```{r}
+other <- pickles_slimmer %>% filter(!manuf_name %in% c("VLA", "NAL", "PEA", "EAR", "GRE", "HOM", "BLA", "CTL")) %>% mutate(manuf_name="other") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%  summarise(sales=sum(sales))
+
+captain <- pickles_slimmer %>% filter(manuf_name %in% c("VLA", "NAL")) %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="PIN")
+
+val <- pickles_slimmer %>% filter(manuf_name %in% c("PEA", "EAR", "GRE", "HOM", "BLA")) %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="MUS")
+
+ctl <- pickles_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="CTL")
+
+pickles_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
+
+rm(other, captain, val, ctl)
+```
+
+spreads and jams
+```{r}
+other <- sj_slimmer %>% filter(!manuf_name %in% c("WEL", "SMU", "CTL")) %>% mutate(manuf_name="other") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%  summarise(sales=sum(sales))
+
+captain <- sj_slimmer %>% filter(manuf_name=="SMU") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="SMU")
+
+val <- sj_slimmer %>% filter(manuf_name=="WEL") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="WEL")
+
+ctl <- sj_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="CTL")
+
+sj_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
+
+rm(other, captain, val, ctl)
+```
+
+canned soup
+```{r}
+other <- soup_slimmer %>% filter(!manuf_name %in% c("CAM", "PRO", "CTL")) %>% mutate(manuf_name="other") %>% group_by(retailer_code, store_code_uc, manuf_name, week_end) %>%  summarise(sales=sum(sales))
+
+captain <- soup_slimmer %>% filter(manuf_name=="CAM") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="CAM")
+
+val <- soup_slimmer %>% filter(manuf_name=="PRO") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="GM")
+
+ctl <- soup_slimmer %>% filter(manuf_name=="CTL") %>% group_by(retailer_code, store_code_uc, week_end) %>% summarise(sales=sum(sales)) %>% mutate(manuf_name="CTL")
+
+soup_agg <- other %>% bind_rows(captain) %>% bind_rows(val) %>% bind_rows(ctl)
+
+rm(other, captain, val, ctl)
+```
 
 Use microsynth to extract the weighted synthetic control values to use in our own diff in diff model. 
 
