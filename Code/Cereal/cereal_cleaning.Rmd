@@ -319,6 +319,207 @@ full_cereal <- full_cereal %>%
          n_week_end = as.numeric(week_end))
 ```
 
+Filter for North Dakota data and impute zero sales. 
+```{r}
+nd_cereal <- full_cereal %>% filter(fips_state_descr == 'ND')
+
+stores <- unique(nd_cereal$store_code_uc)
+
+full_weeks <- nd_cereal %>% distinct(week_end) 
+
+for (store in seq_along(stores)) {
+  
+  single_store <- nd_cereal %>%
+    filter(store_code_uc == stores[store])
+  
+  store_missing_upcs <- single_store %>%
+    group_by(upc) %>%
+    summarize(n_weeks = n()) %>%
+    filter(n_weeks < 105) %>%
+    select(upc) %>%
+    pull()
+  
+  for (upcode in seq_along(store_missing_upcs)) {
+    
+    single_upc <- single_store %>%
+      filter(upc == store_missing_upcs[upcode])
+    
+    vars_vec <- single_upc[1,]
+
+    missing_weeks <- full_weeks %>%
+      anti_join(single_upc, by = 'week_end') %>%
+      pull()
+
+    missing_data <- matrix(nrow = length(missing_weeks),
+                       ncol = length(vars_vec)
+                       )
+
+    missing_data <- map_df(1:length(missing_weeks), function(x) missing_data[x,] <- vars_vec)
+
+    missing_data['week_end'] <- missing_weeks
+    
+    missing_data['price'] <- NA
+
+    missing_data[c('units', 'sales')] <- 0
+    
+    nd_cereal <- nd_cereal %>%
+      bind_rows(missing_data)
+    
+  }
+}  
+```
+
+Filter for Minnesota and impute zero sales. 
+```{r}
+mn_cereal <- full_cereal %>% filter(fips_state_descr == 'MN')
+
+stores <- unique(mn_cereal$store_code_uc)
+
+full_weeks <- mn_cereal %>% distinct(week_end) 
+
+for (store in seq_along(stores)) {
+  
+  single_store <- mn_cereal %>%
+    filter(store_code_uc == stores[store])
+  
+  store_missing_upcs <- single_store %>%
+    group_by(upc) %>%
+    summarize(n_weeks = n()) %>%
+    filter(n_weeks < 105) %>%
+    select(upc) %>%
+    pull()
+  
+  for (upcode in seq_along(store_missing_upcs)) {
+    
+    single_upc <- single_store %>%
+      filter(upc == store_missing_upcs[upcode])
+    
+    vars_vec <- single_upc[1,]
+
+    missing_weeks <- full_weeks %>%
+      anti_join(single_upc, by = 'week_end') %>%
+      pull()
+
+    missing_data <- matrix(nrow = length(missing_weeks),
+                       ncol = length(vars_vec)
+                       )
+
+    missing_data <- map_df(1:length(missing_weeks), function(x) missing_data[x,] <- vars_vec)
+
+    missing_data['week_end'] <- missing_weeks
+    
+    missing_data['price'] <- NA
+
+    missing_data[c('units', 'sales')] <- 0
+    
+    mn_cereal <- mn_cereal %>%
+      bind_rows(missing_data)
+    
+  }
+} 
+```
+
+Filter for Missouri and impute zero sales
+```{r}
+mo_cereal <- full_cereal %>% filter(fips_state_descr == 'MO')
+
+stores <- unique(mo_cereal$store_code_uc)
+
+full_weeks <- mo_cereal %>% distinct(week_end) 
+
+for (store in seq_along(stores)) {
+  
+  single_store <- mo_cereal %>%
+    filter(store_code_uc == stores[store])
+  
+  store_missing_upcs <- single_store %>%
+    group_by(upc) %>%
+    summarize(n_weeks = n()) %>%
+    filter(n_weeks < 105) %>%
+    select(upc) %>%
+    pull()
+  
+  for (upcode in seq_along(store_missing_upcs)) {
+    
+    single_upc <- single_store %>%
+      filter(upc == store_missing_upcs[upcode])
+    
+    vars_vec <- single_upc[1,]
+
+    missing_weeks <- full_weeks %>%
+      anti_join(single_upc, by = 'week_end') %>%
+      pull()
+
+    missing_data <- matrix(nrow = length(missing_weeks),
+                       ncol = length(vars_vec)
+                       )
+
+    missing_data <- map_df(1:length(missing_weeks), function(x) missing_data[x,] <- vars_vec)
+
+    missing_data['week_end'] <- missing_weeks
+    
+    missing_data['price'] <- NA
+
+    missing_data[c('units', 'sales')] <- 0
+    
+    mo_cereal <- mo_cereal %>%
+      bind_rows(missing_data)
+    
+  }
+} 
+```
+
+Filter for Illinios and impute zero sales
+```{r}
+il_cereal <- full_cereal %>% filter(fips_state_descr == 'IL')
+
+stores <- unique(il_cereal$store_code_uc)
+
+full_weeks <- il_cereal %>% distinct(week_end) 
+
+for (store in seq_along(stores)) {
+  
+  single_store <- il_cereal %>%
+    filter(store_code_uc == stores[store])
+  
+  store_missing_upcs <- single_store %>%
+    group_by(upc) %>%
+    summarize(n_weeks = n()) %>%
+    filter(n_weeks < 105) %>%
+    select(upc) %>%
+    pull()
+  
+  for (upcode in seq_along(store_missing_upcs)) {
+    
+    single_upc <- single_store %>%
+      filter(upc == store_missing_upcs[upcode])
+    
+    vars_vec <- single_upc[1,]
+
+    missing_weeks <- full_weeks %>%
+      anti_join(single_upc, by = 'week_end') %>%
+      pull()
+
+    missing_data <- matrix(nrow = length(missing_weeks),
+                       ncol = length(vars_vec)
+                       )
+
+    missing_data <- map_df(1:length(missing_weeks), function(x) missing_data[x,] <- vars_vec)
+
+    missing_data['week_end'] <- missing_weeks
+    
+    missing_data['price'] <- NA
+
+    missing_data[c('units', 'sales')] <- 0
+    
+    il_cereal <- il_cereal %>%
+      bind_rows(missing_data)
+    
+  }
+} 
+```
+
+
 Save the cleaned data and save files for each state. 
 ```{r}
 save(full_cereal, file = 'cereal_clean.RData')
@@ -333,3 +534,6 @@ save(il_cereal, file="il_cereal_clean.RData")
 save(mo_cereal, file="mo_cereal_clean.RData")
 save(nd_cereal, file="nd_cereal_clean.RData")
 ```
+
+
+
