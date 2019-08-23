@@ -5,18 +5,15 @@ date: "August 13, 2018"
 output: github_document
 ---
 
-
 Install packages.
 ```{r eval =FALSE, include=FALSE}
-install.packages("tidyverse")
-install.packages("tibbletime")
-install.packages("lubridate")
+#install.packages("tidyverse")
+#install.packages("lubridate")
 ```
 
 Load libraries.
 ```{r results='hide'}
 library(tidyverse)
-library(tibbletime)
 library(lubridate)
 ```
 
@@ -24,7 +21,7 @@ Read in the files from the frozen_dinners_entries.tgz for 2011.
 ```{r}
 frozen_dinners_files <- untar("frozen_dinners_entries.tgz", list = TRUE)
 
-untar("frozen_dinners_entries.tgz")
+#untar("frozen_dinners_entries.tgz")
 
 move_11 <- tibble()
 
@@ -45,16 +42,19 @@ for (i in seq_along(frozen_dinners_files)) {
 
 products <- read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote = "")
 
-stores_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv") %>%
-  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO", "IL"))
+stores_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv")
+
+rms_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/rms_versions_2011.tsv")
 
 full_11 <- move_11 %>%
-  inner_join(stores_11, by ="store_code_uc") %>%
-  inner_join(products, by ="upc")
+  left_join(stores_11, by ="store_code_uc") %>%
+  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO", "IL")) %>%
+  left_join(rms_11, by = "upc") %>%
+  left_join(products, by = c("upc", "upc_ver_uc"))
 
-save(full_11, file = 'full_11.RData')
+save(full_11, file = "full_11.RData")
 
-rm(move_11, stores_11, full_11)
+rm(move_11, stores_11, rms_11, full_11)
 ```
 
 Read in the files for 2012.
@@ -76,16 +76,19 @@ for (i in seq_along(frozen_dinners_files)) {
     
 }
 
-stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv") %>% 
-  filter(channel_code == "F" & fips_state_descr %in% c("ND","MN","MO","IL"))
+stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv")
+
+rms_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/rms_versions_2012.tsv")
 
 full_12 <- move_12 %>%
-  inner_join(stores_12, by ="store_code_uc") %>% 
-  inner_join(products, by ="upc")
+  left_join(stores_12, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND","MN","MO","IL")) %>%
+  left_join(rms_12, by = "upc") %>%
+  left_join(products, by = c("upc", "upc_ver_uc"))
 
-save(full_12, file = 'full_12.RData')
+save(full_12, file = "full_12.RData")
 
-rm(move_12, stores_12, full_12)
+rm(move_12, stores_12, rms_12, full_12)
 ```
 
 Read in the files for 2013.
@@ -107,56 +110,48 @@ for (i in seq_along(frozen_dinners_files)) {
     
 }
 
-stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", guess_max = 20000) %>% 
-  filter(channel_code == "F" & fips_state_descr %in% c("ND","MN","MO","DC"))
+stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", guess_max = 20000)
+
+rms_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/rms_versions_2013.tsv")
 
 full_13 <- move_13 %>%
-  inner_join(stores_13, by ="store_code_uc") %>% 
-  inner_join(products, by ="upc")
+  left_join(stores_13, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND","MN","MO","IL")) %>%
+  left_join(rms_13, by = "upc") %>%
+  left_join(products, by = c("upc", "upc_ver_uc"))
 
-rm(move_13, stores_13, products)
+rm(move_13, stores_13, rms_13, products)
+```
 
+Combine all three years into one file, `full_data`. Change `week_end` variable to year-month-day format. Create
+variable `sales` which is `units` * `price`. Create variable for manufacturer from the first 3 digits of the brand
+description.
+```{r}
 load('full_11.RData')
 load('full_12.RData')
-```
 
-Merge the full file for each year into one file `full_11_12_13` and change the `week_end` variable to `year-month-day` format. Create sales variable which is `units` * `price`.
-```{r}
-full_11_12_13 <- full_11 %>%
+full_data <- full_11 %>%
   bind_rows(full_12) %>%
   bind_rows(full_13) %>%
-  mutate(week_end = ymd(week_end), sales = units * price)
-```
-
-Create tbls containing each distinct store code (ex: `store_id_11`). Anti-join those three tbls to get 6 tbls
-containing the stores that don't show up in all of the years ex:`in_11_not_12`. Anti join those  tbls with the full movement file to remove the stores that don't show up in all of the years. Create a new variable `manuf_name` which contains the first 3 characters of the `brand_descr` and allows for easy identification of the manufacturers.
-```{r}
-store_id_11 <- distinct(full_11, store_code_uc)
-store_id_12 <- distinct(full_12, store_code_uc)
-store_id_13 <- distinct(full_13, store_code_uc)
+  mutate(week_end = ymd(week_end), 
+         sales = units * price,
+         manuf_name = substr(brand_descr, 1, 3))
 
 rm(full_11, full_12, full_13)
+```
 
-in_11_not_12 <- anti_join(store_id_11, store_id_12, by = "store_code_uc")
-in_11_not_13 <- anti_join(store_id_11, store_id_13, by = "store_code_uc")
-in_12_not_11 <- anti_join(store_id_12, store_id_11, by = "store_code_uc")
-in_12_not_13 <- anti_join(store_id_12, store_id_13, by = "store_code_uc")
-in_13_not_11 <- anti_join(store_id_13, store_id_11, by = "store_code_uc")
-in_13_not_12 <- anti_join(store_id_13, store_id_12, by = "store_code_uc")
-
-full_11_12_13 <- full_11_12_13 %>%
-  anti_join(in_11_not_12, by = "store_code_uc") %>%
-  anti_join(in_11_not_13, by = "store_code_uc") %>%
-  anti_join(in_12_not_11, by = "store_code_uc") %>%
-  anti_join(in_12_not_13, by = "store_code_uc") %>%
-  anti_join(in_13_not_11, by = "store_code_uc") %>%
-  anti_join(in_13_not_12, by = "store_code_uc")
-
-full_11_12_13 <- full_11_12_13 %>%
-  mutate(manuf_name = substr(full_11_12_13$brand_descr, 1, 3))
-
-rm(full_11, full_12, full_13, in_11_not_12, in_11_not_13, in_12_not_11, in_12_not_13, in_13_not_11, in_13_not_12,
-   store_id_11, store_id_12, store_id_13)
+Create `missing_stores` vector which contains the store codes that don't show up in all years in the data. First,
+get each distinct combination of `store_code_uc` and `panel_year`, then summarize by counting the number of years
+for each store, filter for the `store_code_uc` that have less than three years, and store those codes in the vector
+`missing_stores`.
+```{r}
+missing_stores <- full_data %>%
+  distinct(store_code_uc, panel_year) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_years = n()) %>%
+  filter(n_years < 3) %>%
+  select(store_code_uc) %>%
+  pull()
 ```
 
 Create a vector that contains the `store_code_uc` codes that are assigned to multiple retailer codes. First, generate
@@ -164,7 +159,7 @@ unique conbinations of `store_code_uc` and `retailer_code`, then group by `store
 observations - this is the number of `retailer_code` values for the given `store_code_uc`. Then, filter for the 
 `store_code_uc` that have more than one retailer code and pull them into a vector.
 ```{r}
-retailer_switchers <- full_11_12_13 %>%
+retailer_switchers <- full_data %>%
   distinct(store_code_uc, retailer_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_rets = n()) %>%
@@ -176,7 +171,7 @@ retailer_switchers <- full_11_12_13 %>%
 Using a similar approach as the previous chunk explains, create a tbl that contains the `store_code_uc` that have
 multiple `parent_code` values.
 ```{r}
-parent_switchers <- full_11_12_13 %>%
+parent_switchers <- full_data %>%
   distinct(store_code_uc, parent_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_parent = n()) %>%
@@ -185,47 +180,40 @@ parent_switchers <- full_11_12_13 %>%
   pull()
 ```
 
-Create one vector with the store codes to remove because they switch retailer or parent codes.
+Create one vector with the store codes to remove because they switch retailer or parent codes or they don't show up
+in all the years in the data.
 ```{r}
-switchers <- unique(c(parent_switchers, retailer_switchers))
+remove_stores <- unique(c(parent_switchers, retailer_switchers, missing_stores))
 ```
 
-Using the `switchers` vector, filter out the store codes that switch retailer or parent codes.
+Using the `remove_stores` vector, filter out the store codes that switch retailer or parent codes or don't show up
+in all the years in the data.
 ```{r}
-full_11_12_13 <- full_11_12_13 %>%
-  filter(!store_code_uc %in% switchers)
+full_data <- full_data %>%
+  filter(!store_code_uc %in% remove_stores)
 
-rm(parent_switchers, retailer_switchers, switchers)
+rm(parent_switchers, retailer_switchers, remove_stores, missing_stores)
 ```
 
-Use `mutate` to replace the missing `retailer_code` values with the `parent_code`.
+Use `mutate` to replace missing `retailer_code` values with the `parent_code`.
 ```{r}
-full_11_12_13 <- full_11_12_13 %>%
+full_data <- full_data %>%
   mutate(retailer_code = ifelse(is.na(retailer_code), parent_code, retailer_code))
 ```
 
-Create a tbl for each location of interest.
+Save the cleaned data and save files for each state. 
 ```{r}
-nd_data <- full_11_12_13 %>%
-  filter(fips_state_descr == 'ND')
+save(full_data, file="frozen_dinners_clean.RData")
 
-mn_data <- full_11_12_13 %>%
-  filter(fips_state_descr == 'MN')
+mn_data <- full_data %>% filter(fips_state_descr=="MN")
+il_data <- full_data %>% filter(fips_state_descr=="IL")
+mo_data <- full_data %>% filter(fips_state_descr=="MO")
+nd_data <- full_data %>% filter(fips_state_descr=="ND")
 
-mo_data <- full_11_12_13 %>%
-  filter(fips_state_descr == 'MO')
-
-il_data <- full_11_12_13 %>%
-  filter(fips_state_descr == 'IL')
-```
-
-Save `.RData` files for each of the locations of interest as well as the `full_11_12_13` file.
-```{r}
-save(full_11_12_13, file = 'frozen_dinners_clean.RData')
-save(nd_data, file = 'nd_frozen_dinners_clean.RData')
-save(mn_data, file = 'mn_frozen_dinners_clean.RData')
-save(mo_data, file = 'mo_frozen_dinners_clean.RData')
-save(il_data, file = 'il_frozen_dinners_clean.RData')
+save(mn_data, file="mn_frozen_dinners_clean.RData")
+save(il_data, file="il_frozen_dinners_clean.RData")
+save(mo_data, file="mo_frozen_dinners_clean.RData")
+save(nd_data, file="nd_frozen_dinners_clean.RData")
 ```
 
 Captain: Nestle
