@@ -19,8 +19,7 @@ library(readxl)
 library(foreach)
 ```
 
-Create vector of file path names `cereal_files`. Untar (unzip) the `.tgz` file. Use loop to read in 2011 movement
-files and bind them together. 
+Untar (unzip) the `.tgz` file. Use loop to read in 2011 movement, stores, rms, and the products master file. 
 ```{r}
 #cereal_files <- untar('Cereal_RTE_20102012.tgz', list = TRUE)
 #untar('Cereal_RTE_20102012.tgz')
