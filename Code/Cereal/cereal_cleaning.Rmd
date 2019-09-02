@@ -100,7 +100,7 @@ missing_stores <- full_cereal %>%
   distinct(store_code_uc, panel_year) %>%
   group_by(store_code_uc) %>%
   summarize(n_years = n()) %>%
-  filter(n_years < 2) %>%
+  filter(n_years < length(unique(year(full_cereal$week_end)))) %>%
   select(store_code_uc) %>%
   pull()
 ```
