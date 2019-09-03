@@ -1,0 +1,327 @@
+---
+title: "Sugar Data Cleaning"
+output: github_document
+---
+
+Note: This document contains all the code used to merge and clean data for the sugar category. 
+
+Install library.
+```{r eval=FALSE, include=FALSE}
+#install.packages("tidyverse")
+```
+
+Load library.
+```{r}
+library(plyr)
+library(tidyverse)
+library(lubridate)
+library(readxl)
+library(foreach)
+```
+
+Unzip file, then read in files for 2012 using a for loop which reads in a file if it is a 2012 movement file and binds each of the separate files into one.
+```{r}
+sugar_files <- untar('Sugar_2012-14.tgz', list = TRUE)
+untar('Sugar_2012-14.tgz')
+
+move_12 <- tibble()
+
+for (i in seq_along(sugar_files)) {
+  
+  if (substr(sugar_files[i], 22, 40) == "2012/Movement_Files") {
+    
+    temp_move_12 <- read_tsv(sugar_files[i])
+    
+      move_12 <- move_12 %>%
+      
+        bind_rows(temp_move_12)
+      
+      rm(temp_move_12)
+  }
+}
+
+stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv")
+
+rms_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/rms_versions_2012.tsv")
+
+full_12 <- move_12 %>%
+  left_join(stores_12, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND","MN","MO","IL")) %>%
+  left_join(rms_12, by = "upc") %>%
+  left_join(products, by = c("upc", "upc_ver_uc"))
+
+rm(move_12, stores_12, rms_12)
+```
+
+Read in files for 2013 using a for loop which reads in a file if it is a 2013 movement file and binds each of the separate files into one.
+```{r}
+move_13 <- tibble()
+
+for (i in seq_along(sugar_files)) {
+  
+  if (substr(sugar_files[i], 22, 40) == "2013/Movement_Files") {
+    
+    temp_move_13 <- read_tsv(sugar_files[i])
+    
+      move_13 <- move_13 %>%
+      
+        bind_rows(temp_move_13)
+      
+      rm(temp_move_13)
+  }
+}
+
+stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", guess_max = 20000)
+
+rms_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/rms_versions_2013.tsv")
+
+full_13 <- move_13 %>%
+  left_join(stores_13, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND","MN","MO","IL")) %>%
+  left_join(rms_13, by = "upc") %>%
+  left_join(products, by = c("upc", "upc_ver_uc"))
+
+rm(move_13, stores_13, rms_13)
+```
+
+Repeat for 2014. 
+```{r}
+move_14 <- tibble()
+
+for (i in seq_along(sugar_files)) {
+  
+  if (substr(sugar_files[i], 22, 40) == "2014/Movement_Files") {
+    
+    temp_move_14 <- read_tsv(sugar_files[i])
+    
+      move_14 <- move_14 %>%
+      
+        bind_rows(temp_move_14)
+      
+      rm(temp_move_14)
+  }
+}
+
+stores_14 <- read_tsv("nielsen_extracts/RMS/2014/Annual_Files/stores_2014.tsv", guess_max = 20000)
+
+rms_14 <- read_tsv("nielsen_extracts/RMS/2014/Annual_Files/rms_versions_2014.tsv")
+
+full_14 <- move_14 %>%
+  left_join(stores_14, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND","MN","MO","IL")) %>%
+  left_join(rms_14, by = "upc") %>%
+  left_join(products, by = c("upc", "upc_ver_uc"))
+
+rm(move_14, stores_14, rms_14, products)
+```
+
+Read in file containing the manufacturer upc prefixes. The captain and validator for cereal are General Mills and
+Kellogg's, respectively. Create separate vectors with the upc prefixes for both General Mills and Kellogg's called
+`gm_prefs` and `kel_prefs`.
+```{r}
+prefixes <- read_xlsx('Manufacturer UPC Prefixes - From GS1 Company Database.xlsx')
+
+united_prefs <- prefixes %>%
+  filter(manufacturer == 'United Sugars') %>%
+  select(prefix) %>%
+  pull()
+
+domino_prefs <- prefixes %>%
+  filter(manufacturer == "Domino") %>%
+  select(prefix) %>%
+  pull()
+```
+
+Create `full_sugar` by combining the data for 2011 and 2012. Convert `week_end` to be a date variable and create a
+numeric version called `n_week_end` which is needed for microsynth. Create `sales` by multiplying `units` and `price`.
+Create `manufacturer` by assinging the correct manufacturer based on upc prefixes. We assign General Mills, Kellogg's,
+Private Label, and upcs belonging to any other manufacturers fall under 'other'.
+```{r}
+full_sugar <- full_141 %>%
+  bind_rows(full_12) %>% bind_rows(full_13) %>% 
+  mutate(week_end = ymd(week_end),
+         sales = units * price,
+         manufacturer = if_else(grepl(paste(united_prefs, collapse = '|'), upc), 'United Sugars',
+                        if_else(grepl(paste(domino_prefs, collapse = '|'), upc), "Domino",
+                        if_else(brand_descr == 'CTL BR', 'Private Label', 'Other', missing = 'Other'))))
+
+rm(full_14, full_12, full_13, prefixes)
+```
+
+Create `missing_stores` vector which contains the store codes that don't show up in all years in the data. First,
+get each distinct combination of `store_code_uc` and `panel_year`, then summarize by counting the number of years
+for each store, filter for the `store_code_uc` that have less than two years, and store those codes in the vector
+`missing_stores`.
+```{r}
+missing_stores <- full_sugar %>%
+  distinct(store_code_uc, panel_year) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_years = n()) %>%
+  filter(n_years < length(unique(year(full_sugar$week_end)))) %>%
+  select(store_code_uc) %>%
+  pull()
+```
+
+Create a vector that contains the `store_code_uc` codes that are assigned to multiple retailer codes. First, generate
+unique conbinations of `store_code_uc` and `retailer_code`, then group by `store_code_uc` and count the number of
+observations - this is the number of `retailer_code` values for the given `store_code_uc`. Then, filter for the 
+`store_code_uc` that have more than one retailer code and pull them into a vector.
+```{r}
+retailer_switchers <- full_sugar %>%
+  distinct(store_code_uc, retailer_code) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_rets = n()) %>%
+  filter(n_rets > 1) %>%
+  select(store_code_uc) %>%
+  pull()
+```
+
+Using a similar approach as the previous chunk explains, create a tbl that contains the `store_code_uc` that have
+multiple `parent_code` values.
+```{r}
+parent_switchers <- full_sugar %>%
+  distinct(store_code_uc, parent_code) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_parent = n()) %>%
+  filter(n_parent > 1) %>%
+  select(store_code_uc) %>%
+  pull()
+```
+
+Filter for the store codes that do not switch retailer or parent codes and are not missing from one of the years.
+Replace missing `retailer_code` values with the `parent_code`.
+```{r}
+full_sugar <- full_sugar %>%
+  filter(!store_code_uc %in% unique(c(parent_switchers, retailer_switchers, missing_stores))) %>%
+  mutate(retailer_code = if_else(is.na(retailer_code), parent_code, retailer_code))
+
+rm(parent_switchers, retailer_switchers, missing_stores)
+```
+
+Create `multi_brand_descr` which contains the upc codes that have multiple brand descriptions. We assume that upc codes
+with one valid brand description and an `NA` value as the other description actually have the same description and are
+the same product. Create `non_na_descr` which contains the upc codes that have multiple brand descriptions that don't
+include an `NA` value. Filter `full_sugar` for the upc codes that have multiple valid brand descriptions and compare
+them to see if the upc code was used for different products belonging to different manufacturers. All the upc codes in
+this category that had multiple brand descriptions were the same product, they just had a slight change in how the
+`brand_descr` was entered.
+```{r}
+multi_brand_descr <- full_sugar %>%
+  distinct(upc, brand_descr) %>%
+  group_by(upc) %>%
+  summarize(n = n()) %>%
+  filter(n > 1) %>%
+  select(upc) %>%
+  pull()
+
+non_na_descr <- full_sugar %>%
+  filter(upc %in% multi_brand_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc) %>%
+  filter(!is.na(brand_descr)) %>%
+  group_by(upc) %>%
+  summarize(n = n()) %>%
+  filter(n > 1) %>%
+  select(upc) %>%
+  pull()
+
+full_sugar %>%
+  filter(upc %in% non_na_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc)
+```
+
+Check if there are private label products with `NA` brand description values, which we should change to `'CTL BR'` so that they are aggregated under the correct manufacturer. Change `NA` brand descriptions for private label products. 
+```{r}
+full_sugar %>%
+  filter(upc %in% multi_brand_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc)
+
+priv_lab_na <- full_sugar %>%
+  filter(upc %in% multi_brand_descr) %>%
+  distinct(upc, brand_descr) %>%
+  filter(brand_descr == 'CTL BR') %>%
+  select(upc) %>%
+  pull()
+
+full_sugar <- full_sugar %>%
+  mutate(brand_descr = if_else(upc %in% priv_lab_na, 'CTL BR', brand_descr))
+```
+
+When a upc has no sales in a given `week_end` it is not recorded in the data. We need to impute the weeks that a given
+upc had zero sales. First, create `full_weeks` which contains all values of `week_end`. Split `full_sugar` into
+separate `tibbles`, one for each store and upc combination. Loop over the separated `tibbles` and if the number of
+observations for a given upc in a given store is less than the full number of weeks, do an anti-join with `full_weeks`
+to get the missing `week_end` values. Create a matrix `missing_data` which will contain the missing observations. Fill
+`missing_data` in with the variables that stay constant over time, then change `week_end` to be the missing `week_end` 
+values. Change `price` to `NA`, and fill in `units` and `sales` with zero. Use `bind_rows` to add `missing_data` back 
+to the original data. Recombine the separate `full_sugar` data into one `tibble`.
+```{r}
+full_weeks <- full_sugar %>%
+  distinct(week_end)
+
+full_sugar <- full_sugar %>%
+  group_split(store_code_uc, upc)
+
+for (i in 1:length(full_sugar)) {
+  
+  if(nrow(full_sugar[[i]]) < length(full_weeks$week_end)) {
+  
+  vars_vec <- full_sugar[[i]][1,]
+  
+  missing_weeks <- full_weeks %>%
+      anti_join(full_sugar[[i]], by = 'week_end') %>%
+      pull()
+
+  missing_data <- matrix(nrow = length(missing_weeks),
+                         ncol = length(vars_vec)
+                         )
+
+  missing_data <- map_df(1:length(missing_weeks), function(y) missing_data[y,] <- vars_vec)
+
+  missing_data['week_end'] <- missing_weeks
+  
+  missing_data['price'] <- NA
+
+  missing_data[c('units', 'sales')] <- 0
+    
+  full_sugar[[i]] <- full_sugar[[i]] %>%
+    bind_rows(missing_data)
+  
+  }}
+
+full_sugar <- bind_rows(full_sugar)
+```
+
+Check that all upc codes have observations for the full time period and that none have more observations than they 
+should.
+```{r}
+full_sugar %>%
+  group_by(store_code_uc, upc) %>%
+  summarize(n_weeks = n()) %>%
+  filter(n_weeks < length(full_weeks$week_end) |
+         n_weeks > length(full_weeks$week_end))
+```
+
+Create numeric `week_end` variable `n_week_end`.
+```{r}
+full_sugar <- full_sugar %>%
+  mutate(n_week_end = as.numeric(week_end))
+```
+
+Save the cleaned data and save files for each state. 
+```{r}
+save(full_sugar, file = 'sugar_clean.RData')
+
+mn_sugar <- full_sugar %>% filter(fips_state_descr == 'MN')
+il_sugar <- full_sugar %>% filter(fips_state_descr == 'IL')
+mo_sugar <- full_sugar %>% filter(fips_state_descr == 'MO')
+nd_sugar <- full_sugar %>% filter(fips_state_descr == 'ND')
+
+save(mn_sugar, file="mn_sugar_clean.RData")
+save(il_sugar, file="il_sugar_clean.RData")
+save(mo_sugar, file="mo_sugar_clean.RData")
+save(nd_sugar, file="nd_sugar_clean.RData")
+```
+
