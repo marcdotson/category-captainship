@@ -1,0 +1,402 @@
+---
+title: "Aseptic Juice Data Cleaning"
+author: "Cameron Bale"
+date: "8/28/2019"
+output: github_document
+---
+
+Load library.
+```{r}
+library(plyr)
+library(tidyverse)
+library(lubridate)
+library(readxl)
+```
+
+Create `juice_files`, which contains a list of all files contained in the `AsepticJuice_2011-13.tgz` file. Untar the
+`.tgz` file. Read in the stores and rms files for 2011, and the products master file. Loop over the file names in
+`juice_files` and if it is a 2011 movement file, join it to the stores file on `store_code_uc`, filter for channel code
+`'F'` (food) and for the states North Dakota, Minnesota, Missouri, and Illinois (`'ND', 'MN', 'MO', 'IL'`). Then join
+the file to the rms versions file on the upc code, and then join it to the products file on the upc code and the upc
+version. Bind each individual 2011 movement file together into one file.
+```{r}
+juice_files <- untar('AsepticJuice_2011-13.tgz', list = TRUE)
+
+untar('AsepticJuice_2011-13.tgz')
+
+stores_11 <- read_tsv('nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv')
+
+rms_11 <- read_tsv('nielsen_extracts/RMS/2011/Annual_Files/rms_versions_2011.tsv')
+
+products <- read_tsv('nielsen_extracts/RMS/Master_Files/Latest/products.tsv', quote = '')
+
+full_11 <- tibble()
+
+for (i in seq_along(juice_files)) {
+  
+  if (substr(juice_files[i], 22, 40) == "2011/Movement_Files") {
+    
+    temp_move_11 <- read_tsv(juice_files[i]) %>%
+      left_join(stores_11, by = 'store_code_uc') %>%
+      filter(channel_code == 'F' & fips_state_descr %in% c('ND', 'MN', 'MO', 'IL')) %>%
+      left_join(rms_11, by = 'upc') %>%
+      left_join(products, by = c('upc', 'upc_ver_uc'))
+    
+    full_11 <- full_11 %>%
+      bind_rows(temp_move_11)
+      
+    rm(temp_move_11)
+      
+  }
+  
+}
+
+save(full_11, file = 'full_11.RData')
+
+rm(full_11, rms_11, stores_11)
+```
+
+Read in files for 2012 the same way as for 2011, and create `full_12` the same way as `full_11`.
+```{r}
+stores_12 <- read_tsv('nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv')
+
+rms_12 <- read_tsv('nielsen_extracts/RMS/2012/Annual_Files/rms_versions_2012.tsv')
+
+full_12 <- tibble()
+
+for (i in seq_along(juice_files)) {
+  
+  if (substr(juice_files[i], 22, 40) == "2012/Movement_Files") {
+    
+    temp_move_12 <- read_tsv(juice_files[i]) %>%
+      left_join(stores_12, by = 'store_code_uc') %>%
+      filter(channel_code == 'F' & fips_state_descr %in% c('ND', 'MN', 'MO', 'IL')) %>%
+      left_join(rms_12, by = 'upc') %>%
+      left_join(products, by = c('upc', 'upc_ver_uc'))
+    
+    full_12 <- full_12 %>%
+      bind_rows(temp_move_12)
+      
+    rm(temp_move_12)
+      
+  }
+  
+}
+
+save(full_12, file = 'full_12.RData')
+
+rm(full_12, rms_12, stores_12)
+```
+
+Read in files for 2013 the same way as for 2011 and 2012, and create `full_13` the same way as `full_12` and `full_11`.
+```{r}
+stores_13 <- read_tsv('nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv', guess_max = 20000)
+
+rms_13 <- read_tsv('nielsen_extracts/RMS/2013/Annual_Files/rms_versions_2013.tsv')
+
+full_13 <- tibble()
+
+for (i in seq_along(juice_files)) {
+  
+  if (substr(juice_files[i], 22, 40) == "2013/Movement_Files") {
+    
+    temp_move_13 <- read_tsv(juice_files[i]) %>%
+      left_join(stores_13, by = 'store_code_uc') %>%
+      filter(channel_code == 'F' & fips_state_descr %in% c('ND', 'MN', 'MO', 'IL')) %>%
+      left_join(rms_13, by = 'upc') %>%
+      left_join(products, by = c('upc', 'upc_ver_uc'))
+    
+    full_13 <- full_13 %>%
+      bind_rows(temp_move_13)
+      
+    rm(temp_move_13)
+      
+  }
+  
+}
+
+rm(products, rms_13, stores_13, juice_files)
+```
+
+Read in file containing the manufacturer upc prefixes. The captain and validator for juice are Kraft Heinz and
+Coca-Cola, respectively. Create separate vectors with the upc prefixes for both Kraft Heinz and Coca-Cola called
+`kraft_prefs` and `coke_prefs`.
+```{r}
+prefixes <- read_xlsx('Manufacturer UPC Prefixes - From GS1 Company Database.xlsx')
+
+kraft_prefs <- prefixes %>%
+  filter(manufacturer == 'Kraft Heinz') %>%
+  select(prefix) %>%
+  pull()
+
+coke_prefs <- prefixes %>%
+  filter(manufacturer == 'Coca-Cola') %>%
+  select(prefix) %>%
+  pull()
+```
+
+Create `full_juice` by combining the data for 2011, 2012, 2013. Convert `week_end` to be a date variable. Create
+`sales` by multiplying `units` and `price`. Create `manufacturer` by assigning the correct manufacturer based on upc
+prefixes. We assign Kraft Heinz, Coca-Cola, Private Label, and upcs belonging to any other manufacturers fall under 
+'other'.
+```{r}
+load(file = 'full_11.RData')
+load(file = 'full_12.RData')
+
+full_juice <- full_11 %>%
+  bind_rows(full_12) %>%
+  bind_rows(full_13) %>%
+  mutate(week_end = ymd(week_end),
+         sales = units * price,
+         manufacturer = if_else(grepl(paste(kraft_prefs, collapse = '|'), upc), 'Kraft Heinz',
+                        if_else(grepl(paste(coke_prefs, collapse = '|'), upc), 'Coca-Cola',
+                        if_else(brand_descr == 'CTL BR', 'Private Label', 'Other', missing = 'Other'))))
+
+rm(full_11, full_12, full_13, prefixes, coke_prefs, kraft_prefs)
+```
+
+Create `missing_stores` vector which contains the store codes that don't show up in all years in the data. First,
+get each distinct combination of `store_code_uc` and `panel_year`, then summarize by counting the number of years
+for each store, filter for the `store_code_uc` that have less than the number of years in the data, and store those
+codes in the vector `missing_stores`.
+```{r}
+missing_stores <- full_juice %>%
+  distinct(store_code_uc, panel_year) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_years = n()) %>%
+  filter(n_years < length(unique(year(full_juice$week_end)))) %>%
+  select(store_code_uc) %>%
+  pull()
+```
+
+Create a vector that contains the `store_code_uc` codes that are assigned to multiple retailer codes. First, generate
+unique conbinations of `store_code_uc` and `retailer_code`, then group by `store_code_uc` and count the number of
+observations - this is the number of `retailer_code` values for the given `store_code_uc`. Then, filter for the 
+`store_code_uc` that have more than one retailer code and pull them into a vector.
+```{r}
+retailer_switchers <- full_juice %>%
+  distinct(store_code_uc, retailer_code) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_rets = n()) %>%
+  filter(n_rets > 1) %>%
+  select(store_code_uc) %>%
+  pull()
+```
+
+Using a similar approach as the previous chunk explains, create a tbl that contains the `store_code_uc` that have
+multiple `parent_code` values.
+```{r}
+parent_switchers <- full_juice %>%
+  distinct(store_code_uc, parent_code) %>%
+  group_by(store_code_uc) %>%
+  summarize(n_parent = n()) %>%
+  filter(n_parent > 1) %>%
+  select(store_code_uc) %>%
+  pull()
+```
+
+Filter for the store codes that do not switch retailer or parent codes and are not missing from one of the years.
+Replace missing `retailer_code` values with the `parent_code`.
+```{r}
+full_juice <- full_juice %>%
+  filter(!store_code_uc %in% unique(c(parent_switchers, retailer_switchers, missing_stores))) %>%
+  mutate(retailer_code = if_else(is.na(retailer_code), parent_code, retailer_code))
+
+rm(parent_switchers, retailer_switchers, missing_stores)
+```
+
+Create `multi_brand_descr` which contains the upc codes that have multiple brand descriptions. We assume that upc codes
+with one valid brand description and an `NA` value as the other description actually have the same description and are
+the same product. Create `non_na_descr` which contains the upc codes that have multiple brand descriptions that don't
+include an `NA` value. Filter `full_juice` for the upc codes that have multiple valid brand descriptions and compare
+them to see if the upc code was used for different products belonging to different manufacturers. All the upc codes in
+this category that had multiple brand descriptions were the same product, they just had a slight change in how the
+`brand_descr` was entered.
+```{r}
+multi_brand_descr <- full_juice %>%
+  distinct(upc, brand_descr) %>%
+  group_by(upc) %>%
+  summarize(n = n()) %>%
+  filter(n > 1) %>%
+  select(upc) %>%
+  pull()
+
+non_na_descr <- full_juice %>%
+  filter(upc %in% multi_brand_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc) %>%
+  filter(!is.na(brand_descr)) %>%
+  group_by(upc) %>%
+  summarize(n = n()) %>%
+  filter(n > 1) %>%
+  select(upc) %>%
+  pull()
+
+full_juice %>%
+  filter(upc %in% non_na_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc)
+```
+
+Check if there are private label products with `NA` brand description values, which we should change to `'CTL BR'` so
+that they are aggregated under the correct manufacturer. Change `NA` brand descriptions for private label products. 
+```{r}
+full_juice %>%
+  filter(upc %in% multi_brand_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc)
+
+# there are no private label upcs with `na` brand descriptions so we don't need to run the rest of this chunk
+
+#priv_lab_na <- full_juice %>%
+#  filter(upc %in% multi_brand_descr) %>%
+#  distinct(upc, brand_descr) %>%
+#  filter(brand_descr == 'CTL BR') %>%
+#  select(upc) %>%
+#  pull()
+
+#full_juice <- full_juice %>%
+#  mutate(brand_descr = if_else(upc %in% priv_lab_na, 'CTL BR', brand_descr))
+```
+
+Split `full_juice` into separate `tibbles` for each state and save the `tibble` for each state.
+```{r}
+states <- c('ND', 'MN', 'MO', 'IL')
+
+for (state in seq_along(states)) {
+  
+  state_df <- full_juice %>%
+    filter(fips_state_descr == states[state])
+  
+  save(state_df, file = paste0(states[state], '_data.RData'))
+  
+  rm(state_df)
+  
+}
+```
+
+Due to the size of the data, we impute the weeks with zero sales for each state `tibble` separately. Create `full_weeks`
+which contains each unique `week_end` value. Remove `full_juice` to free up memory. For each state, the loop reads in
+the state's `tibble`, splits it at the store and upc level, then for each upc in each store adds observations showing 
+the weeks that a given upc had zero sales. Then, bind all the separate store and upc `tibbles` back into one.
+```{r}
+full_weeks <- full_juice %>%
+  distinct(week_end)
+
+rm(full_juice)
+
+for (state in seq_along(states)) {
+  
+  load(paste0(states[state], '_data.RData'))
+
+  state_df <- state_df %>%
+    group_split(store_code_uc, upc)
+
+  for (i in 1:length(state_df)) {
+  
+    if(nrow(state_df[[i]]) < length(full_weeks$week_end)) {
+  
+    vars_vec <- state_df[[i]][1,]
+  
+    missing_weeks <- full_weeks %>%
+        anti_join(state_df[[i]], by = 'week_end') %>%
+        pull()
+  
+    missing_data <- matrix(nrow = length(missing_weeks),
+                           ncol = length(vars_vec)
+                           )
+  
+    missing_data <- map_df(1:length(missing_weeks), function(y) missing_data[y,] <- vars_vec)
+  
+    missing_data['week_end'] <- missing_weeks
+  
+    missing_data['price'] <- NA
+  
+    missing_data[c('units', 'sales')] <- 0
+    
+    state_df[[i]] <- state_df[[i]] %>%
+      bind_rows(missing_data)
+  
+    }
+    
+  }
+    
+  state_df <- bind_rows(state_df)
+  
+  save(state_df, file = paste0(states[state], '_data_zeros.RData'))
+  
+  rm(state_df)
+  
+}
+
+rm(list = ls())
+```
+
+Read in and combine each state `tibble` back into one `tibble`.
+```{r}
+states <- c('ND', 'MN', 'MO', 'IL')
+
+full_juice <- tibble()
+
+for (state in seq_along(states)) {
+  
+  load(file = paste0(states[state], '_data_zeros.RData'))
+  
+  full_juice <- full_juice %>%
+    bind_rows(state_df)
+  
+  rm(state_df)
+  
+}
+```
+
+Check that all upc codes have observations for the full time period and that none have more observations than they 
+should.
+```{r}
+full_juice %>%
+  group_by(store_code_uc, upc) %>%
+  summarize(n_weeks = n()) %>%
+  filter(n_weeks < length(unique(full_juice$week_end)) |
+         n_weeks > length(unique(full_juice$week_end)))
+```
+
+Create numeric `week_end` variable `n_week_end`.
+```{r}
+full_juice <- full_juice %>%
+  mutate(n_week_end = as.numeric(week_end))
+```
+
+Save the cleaned data and save files for each state. 
+```{r}
+save(full_juice, file = 'juice_clean.RData')
+
+mn_juice <- full_juice %>% filter(fips_state_descr == 'MN')
+
+full_juice <- full_juice %>%
+  filter(fips_state_descr %in% c('ND', 'IL', 'MO'))
+
+save(mn_juice, file="mn_juice_clean.RData")
+
+rm(mn_juice)
+
+mo_juice <- full_juice %>% filter(fips_state_descr == 'MO')
+
+full_juice <- full_juice %>%
+  filter(fips_state_descr %in% c('ND', 'IL'))
+
+save(mo_juice, file = 'mo_juice_clean.RData')
+
+rm(mo_juice)
+
+nd_juice <- full_juice %>% filter(fips_state_descr == 'ND')
+
+save(nd_juice, file="nd_juice_clean.RData")
+
+rm(nd_juice)
+
+il_juice <- full_juice %>% filter(fips_state_descr == 'IL')
+
+save(il_juice, file="il_juice_clean.RData")
+
+rm(list = ls())
+```
