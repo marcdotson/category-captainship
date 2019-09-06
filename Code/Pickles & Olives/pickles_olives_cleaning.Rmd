@@ -1,9 +1,9 @@
 ---
-title: "Popcorn data cleaning"
+title: "Pickles and Olives Data Cleaning"
 output: github_document
 ---
 
-Note: This document contains all the code used to merge and clean data for the popcorn category. 
+This code imports, cleans, and saves the data for the pickles and olives category in the four locations of interest.
 
 Install library.
 ```{r eval=FALSE, include=FALSE}
@@ -19,100 +19,137 @@ library(readxl)
 library(foreach)
 ```
 
-Untar (unzip) the `.tgz` file. Use loop to read in 2011 movement, stores, rms, and the products master file. 
+Read in files for 2011.
 ```{r}
-popcorn_files <- untar('Popcorn_2010-13.tgz', list = TRUE)
-untar('Popcorn_2010-13.tgz')
+untar("Pickles_Olives.tgz")
+pickles_files <- untar("Pickles_Olives.tgz", list=TRUE)
 
-move_11a <- read_tsv("nielsen_extracts/RMS/2011/Movement_Files/1507_2011/1328_2011.tsv" )
-move_11b <- read_tsv("nielsen_extracts/RMS/2011/Movement_Files/1507_2011/1329_2011.tsv" )
-move_11 <- move_11a %>% bind_rows(move_11b)
+move_11 <- tibble()
+for (i in seq_along(pickles_files)) {
+  
+  if (substr(pickles_files[i], 22, 40) == "2011/Movement_Files") {
+    
+    temp_move_11 <- read_tsv(pickles_files[i])
+    
+      move_11 <- move_11 %>%
+      
+        bind_rows(temp_move_11)
+      
+      rm(temp_move_11)
+  }
+}
 
 stores_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv")
+products <- read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote = "")
 rms_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/rms_versions_2011.tsv")
-products <- read_tsv('nielsen_extracts/RMS/Master_Files/Latest/products.tsv', quote = '')
-
-rm(move_11a, move_11b)
 ```
 
-Create `full_11` by joining the 2011 stores file to the movement file on `store_code_uc`. Then filter for `F` (food)
-and `ND` (North Dakota) `MN` (Minnesota) `MO` (Missouri) and `IL` (Illinois). Join the 2011 rms file to the movement
-file on `upc`, then join the products file to the movement file on `upc` and `upc_ver_uc`. This ensures that no
-entries in the movement file are duplicated.
+Create `full_11` by joining the data in the stores file to the movement file, filtering for channel code `F` (Food)
+and states North Dakota, Minnesota, Missouri, and Illinois. Create `panel_year` variable to merge the rms versions
+file to the movement file. Then join the correct upc attributes from the products file to the movement file based on
+the upc code and the version from the rms file.
 ```{r}
 full_11 <- move_11 %>%
-  left_join(stores_11, by = 'store_code_uc') %>% 
-  filter(channel_code == 'F' & fips_state_descr %in% c('ND', 'MN', 'MO', 'IL')) %>%
+  left_join(stores_11, by = "store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL")) %>%
   left_join(rms_11, by = 'upc') %>%
   left_join(products, by = c('upc', 'upc_ver_uc'))
 
 rm(move_11, rms_11, stores_11)
 ```
 
-Read in files for 2012 the same way as for 2011, and create `full_12` the same way as `full_11`.
-```{r}
-move_12a <- read_tsv("nielsen_extracts/RMS/2012/Movement_Files/1507_2012/1328_2012.tsv" )
-move_12b <- read_tsv("nielsen_extracts/RMS/2012/Movement_Files/1507_2012/1329_2012.tsv")
-move_12 <- move_12a %>% bind_rows(move_12b)
+Read in and bind `2012 movement` files.
+```{r results='hide'}
+move_12 <- tibble()
+for (i in seq_along(pickles_files)) {
+  
+  if (substr(pickles_files[i], 22, 40) == "2012/Movement_Files") {
+    
+    temp_move_12 <- read_tsv(pickles_files[i])
+    
+      move_12 <- move_12 %>%
+      
+        bind_rows(temp_move_12)
+      
+      rm(temp_move_12)
+  }
+}
+```
 
-stores_12 <- read_tsv('nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv')
-rms_12 <- read_tsv('nielsen_extracts/RMS/2012/Annual_Files/rms_versions_2012.tsv')
+Read in files for 2012 and create `full_12` the same way as `full_11`.
+```{r}
+stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv")
+rms_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/rms_versions_2012.tsv")
 
 full_12 <- move_12 %>%
-  left_join(stores_12, by = 'store_code_uc') %>% 
-  filter(channel_code == 'F' & fips_state_descr %in% c('ND', 'MN', 'MO', 'IL')) %>%
+  left_join(stores_12, by = "store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL")) %>%
   left_join(rms_12, by = 'upc') %>%
   left_join(products, by = c('upc', 'upc_ver_uc'))
 
-rm(move_12, stores_12, rms_12, move12a, move12b)
+rm(move_12, stores_12, rms_12)
 ```
 
-Repeat for 2013. 
-```{r}
-move_13a <- read_tsv("nielsen_extracts/RMS/2013/Movement_Files/1507_2013/1328_2013.tsv")
-move_13b <- read_tsv("nielsen_extracts/RMS/2013/Movement_Files/1507_2013/1329_2013.tsv")
-move_13 <- move_13a %>% bind_rows(move_13b)
+Read in and bind `2013 movement` files.
+```{r results='hide'}
+move_13 <- tibble()
+for (i in seq_along(pickles_files)) {
+  
+  if (substr(pickles_files[i], 22, 40) == "2013/Movement_Files") {
+    
+    temp_move_13 <- read_tsv(pickles_files[i])
+    
+      move_13 <- move_13 %>%
+      
+        bind_rows(temp_move_13)
+      
+      rm(temp_move_13)
+  }
+}
+```
 
-stores_13 <- read_tsv('nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv')
-rms_13 <- read_tsv('nielsen_extracts/RMS/2012/Annual_Files/rms_versions_2012.tsv')
+Read in the files for 2013 and create `full_13` the same way as `full_12` and `full_11`.
+```{r}
+stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", guess_max = 20000)
+rms_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/rms_versions_2013.tsv")
 
 full_13 <- move_13 %>%
-  left_join(stores_13, by = 'store_code_uc') %>% 
-  filter(channel_code == 'F' & fips_state_descr %in% c('ND', 'MN', 'MO', 'IL')) %>%
+  left_join(stores_13, by = "store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO" ,"IL")) %>%
   left_join(rms_13, by = 'upc') %>%
   left_join(products, by = c('upc', 'upc_ver_uc'))
 
-rm(move_13, stores_13, rms_13, products, move_13a, move_13b, products)
+rm(move_13, stores_13, rms_13, products)
 ```
 
-Read in file containing the manufacturer upc prefixes. The captain and validator for cereal are Conagra and
-Diamond Foods, respectively. Create separate vectors with the upc prefixes for both Conagra and Diamond Foods called
-`conagra_prefs` and `diamond_prefs`.
+Read in file containing the manufacturer upc prefixes. The captain and validator for cereal are Pinnacle and
+Musco, respectively. Create separate vectors with the upc prefixes for both Pinnacle and Musco called
+`pinnacle_prefs` and `musco_prefs`.
 ```{r}
 prefixes <- read_xlsx('Manufacturer UPC Prefixes - From GS1 Company Database.xlsx')
 
-conagra_prefs <- prefixes %>%
-  filter(manufacturer == 'Conagra') %>%
+pinnacle_prefs <- prefixes %>%
+  filter(manufacturer == 'Pinnacle') %>%
   select(prefix) %>%
   pull()
 
-diamond_prefs <- prefixes %>%
-  filter(manufacturer == "Diamond") %>%
+musco_prefs <- prefixes %>%
+  filter(manufacturer == "Musco") %>%
   select(prefix) %>%
   pull()
 ```
 
-Create `full_popcorn` by combining the data for 2011 and 2012. Convert `week_end` to be a date variable and create a
+Create `full_pickles` by combining the data for 2011 and 2012. Convert `week_end` to be a date variable and create a
 numeric version called `n_week_end` which is needed for microsynth. Create `sales` by multiplying `units` and `price`.
 Create `manufacturer` by assinging the correct manufacturer based on upc prefixes. We assign General Mills, Kellogg's,
 Private Label, and upcs belonging to any other manufacturers fall under 'other'.
 ```{r}
-full_popcorn <- full_11 %>%
+full_pickles <- full_11 %>%
   bind_rows(full_12) %>% bind_rows(full_13) %>% 
   mutate(week_end = ymd(week_end),
          sales = units * price,
-         manufacturer = if_else(grepl(paste(conagra_prefs, collapse = '|'), upc), 'Conagra',
-                        if_else(grepl(paste(diamond_prefs, collapse = '|'), upc), "Diamond",
+         manufacturer = if_else(grepl(paste(pinnacle_prefs, collapse = '|'), upc), 'Pinnacle',
+                        if_else(grepl(paste(musco_prefs, collapse = '|'), upc), "Musco",
                         if_else(brand_descr == 'CTL BR', 'Private Label', 'Other', missing = 'Other'))))
 
 rm(full_11, full_12, full_13, prefixes)
@@ -123,11 +160,11 @@ get each distinct combination of `store_code_uc` and `panel_year`, then summariz
 for each store, filter for the `store_code_uc` that have less than two years, and store those codes in the vector
 `missing_stores`.
 ```{r}
-missing_stores <- full_popcorn %>%
+missing_stores <- full_pickles %>%
   distinct(store_code_uc, panel_year) %>%
   group_by(store_code_uc) %>%
   summarize(n_years = n()) %>%
-  filter(n_years < length(unique(year(full_popcorn$week_end)))) %>%
+  filter(n_years < length(unique(year(full_pickles$week_end)))) %>%
   select(store_code_uc) %>%
   pull()
 ```
@@ -137,7 +174,7 @@ unique conbinations of `store_code_uc` and `retailer_code`, then group by `store
 observations - this is the number of `retailer_code` values for the given `store_code_uc`. Then, filter for the 
 `store_code_uc` that have more than one retailer code and pull them into a vector.
 ```{r}
-retailer_switchers <- full_popcorn %>%
+retailer_switchers <- full_pickles %>%
   distinct(store_code_uc, retailer_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_rets = n()) %>%
@@ -149,7 +186,7 @@ retailer_switchers <- full_popcorn %>%
 Using a similar approach as the previous chunk explains, create a tbl that contains the `store_code_uc` that have
 multiple `parent_code` values.
 ```{r}
-parent_switchers <- full_popcorn %>%
+parent_switchers <- full_pickles %>%
   distinct(store_code_uc, parent_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_parent = n()) %>%
@@ -161,7 +198,7 @@ parent_switchers <- full_popcorn %>%
 Filter for the store codes that do not switch retailer or parent codes and are not missing from one of the years.
 Replace missing `retailer_code` values with the `parent_code`.
 ```{r}
-full_popcorn <- full_popcorn %>%
+full_pickles <- full_pickles %>%
   filter(!store_code_uc %in% unique(c(parent_switchers, retailer_switchers, missing_stores))) %>%
   mutate(retailer_code = if_else(is.na(retailer_code), parent_code, retailer_code))
 
@@ -171,12 +208,12 @@ rm(parent_switchers, retailer_switchers, missing_stores)
 Create `multi_brand_descr` which contains the upc codes that have multiple brand descriptions. We assume that upc codes
 with one valid brand description and an `NA` value as the other description actually have the same description and are
 the same product. Create `non_na_descr` which contains the upc codes that have multiple brand descriptions that don't
-include an `NA` value. Filter `full_popcorn` for the upc codes that have multiple valid brand descriptions and compare
+include an `NA` value. Filter `full_pickles` for the upc codes that have multiple valid brand descriptions and compare
 them to see if the upc code was used for different products belonging to different manufacturers. All the upc codes in
 this category that had multiple brand descriptions were the same product, they just had a slight change in how the
 `brand_descr` was entered.
 ```{r}
-multi_brand_descr <- full_popcorn %>%
+multi_brand_descr <- full_pickles %>%
   distinct(upc, brand_descr) %>%
   group_by(upc) %>%
   summarize(n = n()) %>%
@@ -184,7 +221,7 @@ multi_brand_descr <- full_popcorn %>%
   select(upc) %>%
   pull()
 
-non_na_descr <- full_popcorn %>%
+non_na_descr <- full_pickles %>%
   filter(upc %in% multi_brand_descr) %>%
   distinct(upc, brand_descr) %>%
   arrange(upc) %>%
@@ -195,7 +232,7 @@ non_na_descr <- full_popcorn %>%
   select(upc) %>%
   pull()
 
-full_popcorn %>%
+full_pickles %>%
   filter(upc %in% non_na_descr) %>%
   distinct(upc, brand_descr) %>%
   arrange(upc)
@@ -203,45 +240,45 @@ full_popcorn %>%
 
 Check if there are private label products with `NA` brand description values, which we should change to `'CTL BR'` so that they are aggregated under the correct manufacturer. Change `NA` brand descriptions for private label products. 
 ```{r}
-full_popcorn %>%
+full_pickles %>%
   filter(upc %in% multi_brand_descr) %>%
   distinct(upc, brand_descr) %>%
   arrange(upc)
 
-priv_lab_na <- full_popcorn %>%
+priv_lab_na <- full_pickles %>%
   filter(upc %in% multi_brand_descr) %>%
   distinct(upc, brand_descr) %>%
   filter(brand_descr == 'CTL BR') %>%
   select(upc) %>%
   pull()
 
-full_popcorn <- full_popcorn %>%
+full_pickles <- full_pickles %>%
   mutate(brand_descr = if_else(upc %in% priv_lab_na, 'CTL BR', brand_descr))
 ```
 
 When a upc has no sales in a given `week_end` it is not recorded in the data. We need to impute the weeks that a given
-upc had zero sales. First, create `full_weeks` which contains all values of `week_end`. Split `full_popcorn` into
+upc had zero sales. First, create `full_weeks` which contains all values of `week_end`. Split `full_pickles` into
 separate `tibbles`, one for each store and upc combination. Loop over the separated `tibbles` and if the number of
 observations for a given upc in a given store is less than the full number of weeks, do an anti-join with `full_weeks`
 to get the missing `week_end` values. Create a matrix `missing_data` which will contain the missing observations. Fill
 `missing_data` in with the variables that stay constant over time, then change `week_end` to be the missing `week_end` 
 values. Change `price` to `NA`, and fill in `units` and `sales` with zero. Use `bind_rows` to add `missing_data` back 
-to the original data. Recombine the separate `full_popcorn` data into one `tibble`.
+to the original data. Recombine the separate `full_pickles` data into one `tibble`.
 ```{r}
-full_weeks <- full_popcorn %>%
+full_weeks <- full_pickles %>%
   distinct(week_end)
 
-full_popcorn <- full_popcorn %>%
+full_pickles <- full_pickles %>%
   group_split(store_code_uc, upc)
 
-for (i in 1:length(full_popcorn)) {
+for (i in 1:length(full_pickles)) {
   
-  if(nrow(full_popcorn[[i]]) < length(full_weeks$week_end)) {
+  if(nrow(full_pickles[[i]]) < length(full_weeks$week_end)) {
   
-  vars_vec <- full_popcorn[[i]][1,]
+  vars_vec <- full_pickles[[i]][1,]
   
   missing_weeks <- full_weeks %>%
-      anti_join(full_popcorn[[i]], by = 'week_end') %>%
+      anti_join(full_pickles[[i]], by = 'week_end') %>%
       pull()
 
   missing_data <- matrix(nrow = length(missing_weeks),
@@ -256,18 +293,18 @@ for (i in 1:length(full_popcorn)) {
 
   missing_data[c('units', 'sales')] <- 0
     
-  full_popcorn[[i]] <- full_popcorn[[i]] %>%
+  full_pickles[[i]] <- full_pickles[[i]] %>%
     bind_rows(missing_data)
   
   }}
 
-full_popcorn <- bind_rows(full_popcorn)
+full_pickles <- bind_rows(full_pickles)
 ```
 
 Check that all upc codes have observations for the full time period and that none have more observations than they 
 should.
 ```{r}
-full_popcorn %>%
+full_pickles %>%
   group_by(store_code_uc, upc) %>%
   summarize(n_weeks = n()) %>%
   filter(n_weeks < length(full_weeks$week_end) |
@@ -276,22 +313,23 @@ full_popcorn %>%
 
 Create numeric `week_end` variable `n_week_end`.
 ```{r}
-full_popcorn <- full_popcorn %>%
+full_pickles <- full_pickles %>%
   mutate(n_week_end = as.numeric(week_end))
 ```
 
 Save the cleaned data and save files for each state. 
 ```{r}
-save(full_popcorn, file = 'popcorn_clean.RData')
+save(full_pickles, file = 'pickles_clean.RData')
 
-mn_popcorn <- full_popcorn %>% filter(fips_state_descr == 'MN')
-il_popcorn <- full_popcorn %>% filter(fips_state_descr == 'IL')
-mo_popcorn <- full_popcorn %>% filter(fips_state_descr == 'MO')
-nd_popcorn <- full_popcorn %>% filter(fips_state_descr == 'ND')
+mn_pickles <- full_pickles %>% filter(fips_state_descr == 'MN')
+il_pickles <- full_pickles %>% filter(fips_state_descr == 'IL')
+mo_pickles <- full_pickles %>% filter(fips_state_descr == 'MO')
+nd_pickles <- full_pickles %>% filter(fips_state_descr == 'ND')
 
-save(mn_popcorn, file="mn_popcorn_clean.RData")
-save(il_popcorn, file="il_popcorn_clean.RData")
-save(mo_popcorn, file="mo_popcorn_clean.RData")
-save(nd_popcorn, file="nd_popcorn_clean.RData")
+save(mn_pickles, file="mn_pickles_clean.RData")
+save(il_pickles, file="il_pickles_clean.RData")
+save(mo_pickles, file="mo_pickles_clean.RData")
+save(nd_pickles, file="nd_pickles_clean.RData")
 ```
+
 
