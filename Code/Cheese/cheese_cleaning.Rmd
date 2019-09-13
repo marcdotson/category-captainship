@@ -1,9 +1,11 @@
 ---
-title: "Coffee Data Cleaning"
-output: github_document
+title: "Cheese Cleaning File"
+author: "Cameron Bale"
+date: "9/10/2019"
+output: html_document
 ---
 
-Note: This document contains all the code used to merge and clean data for the coffee category. 
+Note: This document contains all the code used to merge and clean data for the cheese category. 
 
 Install library.
 ```{r eval=FALSE, include=FALSE}
@@ -16,23 +18,21 @@ library(plyr)
 library(tidyverse)
 library(lubridate)
 library(readxl)
-library(foreach)
 ```
 
-Unzip file, then read in files for 2011 using a for loop which reads in a file if it is a 2011 movement file and binds
-each of the separate files into one.
+Unzip file, then read in files for 2011 using a for loop which reads in a file if it is a 2011 movement file and binds each of the separate files into one. Read in the products master file and the 2011 stores and rms files.
 ```{r}
-coffee_files <- untar('Coffee_2011-13.tgz', list = TRUE)
+cheese_files <- untar('cheese_2011-13.tgz', list = TRUE)
 
-untar('Coffee_2011-13.tgz')
+untar('cheese_2011-13.tgz')
 
 move_11 <- tibble()
 
-for (i in seq_along(coffee_files)) {
+for (i in seq_along(cheese_files)) {
   
-  if (substr(coffee_files[i], 22, 40) == "2011/Movement_Files") {
+  if (substr(cheese_files[i], 22, 40) == "2011/Movement_Files") {
     
-    temp_move_11 <- read_tsv(coffee_files[i])
+    temp_move_11 <- read_tsv(cheese_files[i])
     
       move_11 <- move_11 %>%
       
@@ -58,15 +58,15 @@ full_11 <- move_11 %>%
 rm(move_11, stores_11, rms_11)
 ```
 
-Read in files for 2012 using a for loop which reads in a file if it is a 2012 movement file and binds each of the separate files into one.
+Repeat for 2012.
 ```{r}
 move_12 <- tibble()
 
-for (i in seq_along(coffee_files)) {
+for (i in seq_along(cheese_files)) {
   
-  if (substr(coffee_files[i], 22, 40) == "2012/Movement_Files") {
+  if (substr(cheese_files[i], 22, 40) == "2012/Movement_Files") {
     
-    temp_move_12 <- read_tsv(coffee_files[i])
+    temp_move_12 <- read_tsv(cheese_files[i])
     
       move_12 <- move_12 %>%
       
@@ -89,16 +89,15 @@ full_12 <- move_12 %>%
 rm(move_12, stores_12, rms_12)
 ```
 
-Read in files for 2013 using a for loop which reads in a file if it is a 2013 movement file and binds each of the
-separate files into one.
+Repeat for 2013.
 ```{r}
 move_13 <- tibble()
 
-for (i in seq_along(coffee_files)) {
+for (i in seq_along(cheese_files)) {
   
-  if (substr(coffee_files[i], 22, 40) == "2013/Movement_Files") {
+  if (substr(cheese_files[i], 22, 40) == "2013/Movement_Files") {
     
-    temp_move_13 <- read_tsv(coffee_files[i])
+    temp_move_13 <- read_tsv(cheese_files[i])
     
       move_13 <- move_13 %>%
       
@@ -121,9 +120,9 @@ full_13 <- move_13 %>%
 rm(move_13, stores_13, rms_13, products)
 ```
 
-Read in file containing the manufacturer upc prefixes. The captain and validator for cereal are Smucker's and
-Kraft, respectively. Create separate vectors with the upc prefixes for both Smucker's and Kraft called
-`kraft_prefs` and `smuckers_prefs`.
+Read in file containing the manufacturer upc prefixes. The captain and validator for cheese are Kraft and
+Sargento, respectively. Create separate vectors with the upc prefixes for both Kraft and Sargento called
+`kraft_prefs` and `sarg_prefs`.
 ```{r}
 prefixes <- read_xlsx('Manufacturer UPC Prefixes - From GS1 Company Database.xlsx')
 
@@ -132,24 +131,24 @@ kraft_prefs <- prefixes %>%
   select(prefix) %>%
   pull()
 
-smuckers_prefs <- prefixes %>%
-  filter(manufacturer == "Smucker's") %>%
+sarg_prefs <- prefixes %>%
+  filter(manufacturer == 'Sargento') %>%
   select(prefix) %>%
   pull()
 ```
 
-Create `full_coffee` by combining the data for 2011 and 2012. Convert `week_end` to be a date variable and create a
+Create `full_cheese` by combining the data for 2011 and 2012. Convert `week_end` to be a date variable and create a
 numeric version called `n_week_end` which is needed for microsynth. Create `sales` by multiplying `units` and `price`.
-Create `manufacturer` by assinging the correct manufacturer based on upc prefixes. We assign Smucker's, Kraft,
+Create `manufacturer` by assinging the correct manufacturer based on upc prefixes. We assign Kraft, Sargento,
 Private Label, and upcs belonging to any other manufacturers fall under 'other'.
 ```{r}
-full_coffee <- full_11 %>%
+full_cheese <- full_11 %>%
   bind_rows(full_12) %>%
   bind_rows(full_13) %>%
   mutate(week_end = ymd(week_end),
          sales = units * price,
-         manufacturer = if_else(grepl(paste(smuckers_prefs, collapse = '|'), upc), 'Smuckers',
-                        if_else(grepl(paste(kraft_prefs, collapse = '|'), upc), "Kraft",
+         manufacturer = if_else(grepl(paste(kraft_prefs, collapse = '|'), upc), 'Kraft',
+                        if_else(grepl(paste(sarg_prefs, collapse = '|'), upc), 'Sargento',
                         if_else(brand_descr == 'CTL BR', 'Private Label', 'Other', missing = 'Other'))))
 
 rm(full_11, full_12, full_13, prefixes)
@@ -160,11 +159,11 @@ get each distinct combination of `store_code_uc` and `panel_year`, then summariz
 for each store, filter for the `store_code_uc` that have less than two years, and store those codes in the vector
 `missing_stores`.
 ```{r}
-missing_stores <- full_coffee %>%
+missing_stores <- full_cheese %>%
   distinct(store_code_uc, panel_year) %>%
   group_by(store_code_uc) %>%
   summarize(n_years = n()) %>%
-  filter(n_years < length(unique(year(full_coffee$week_end)))) %>%
+  filter(n_years < length(unique(year(full_cheese$week_end)))) %>%
   select(store_code_uc) %>%
   pull()
 ```
@@ -174,7 +173,7 @@ unique conbinations of `store_code_uc` and `retailer_code`, then group by `store
 observations - this is the number of `retailer_code` values for the given `store_code_uc`. Then, filter for the 
 `store_code_uc` that have more than one retailer code and pull them into a vector.
 ```{r}
-retailer_switchers <- full_coffee %>%
+retailer_switchers <- full_cheese %>%
   distinct(store_code_uc, retailer_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_rets = n()) %>%
@@ -186,7 +185,7 @@ retailer_switchers <- full_coffee %>%
 Using a similar approach as the previous chunk explains, create a tbl that contains the `store_code_uc` that have
 multiple `parent_code` values.
 ```{r}
-parent_switchers <- full_coffee %>%
+parent_switchers <- full_cheese %>%
   distinct(store_code_uc, parent_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_parent = n()) %>%
@@ -198,7 +197,7 @@ parent_switchers <- full_coffee %>%
 Filter for the store codes that do not switch retailer or parent codes and are not missing from one of the years.
 Replace missing `retailer_code` values with the `parent_code`.
 ```{r}
-full_coffee <- full_coffee %>%
+full_cheese <- full_cheese %>%
   filter(!store_code_uc %in% unique(c(parent_switchers, retailer_switchers, missing_stores))) %>%
   mutate(retailer_code = if_else(is.na(retailer_code), parent_code, retailer_code))
 
@@ -208,12 +207,12 @@ rm(parent_switchers, retailer_switchers, missing_stores)
 Create `multi_brand_descr` which contains the upc codes that have multiple brand descriptions. We assume that upc codes
 with one valid brand description and an `NA` value as the other description actually have the same description and are
 the same product. Create `non_na_descr` which contains the upc codes that have multiple brand descriptions that don't
-include an `NA` value. Filter `full_coffee` for the upc codes that have multiple valid brand descriptions and compare
+include an `NA` value. Filter `full_cheese` for the upc codes that have multiple valid brand descriptions and compare
 them to see if the upc code was used for different products belonging to different manufacturers. All the upc codes in
 this category that had multiple brand descriptions were the same product, they just had a slight change in how the
 `brand_descr` was entered.
 ```{r}
-multi_brand_descr <- full_coffee %>%
+multi_brand_descr <- full_cheese %>%
   distinct(upc, brand_descr) %>%
   group_by(upc) %>%
   summarize(n = n()) %>%
@@ -221,7 +220,7 @@ multi_brand_descr <- full_coffee %>%
   select(upc) %>%
   pull()
 
-non_na_descr <- full_coffee %>%
+non_na_descr <- full_cheese %>%
   filter(upc %in% multi_brand_descr) %>%
   distinct(upc, brand_descr) %>%
   arrange(upc) %>%
@@ -232,7 +231,7 @@ non_na_descr <- full_coffee %>%
   select(upc) %>%
   pull()
 
-full_coffee %>%
+full_cheese %>%
   filter(upc %in% non_na_descr) %>%
   distinct(upc, brand_descr) %>%
   arrange(upc)
@@ -241,46 +240,46 @@ full_coffee %>%
 Check if there are private label products with `NA` brand description values, which we should change to `'CTL BR'` so
 that they are aggregated under the correct manufacturer. Change `NA` brand descriptions for private label products. 
 ```{r}
-full_coffee %>%
+full_cheese %>%
   filter(upc %in% multi_brand_descr) %>%
   distinct(upc, brand_descr) %>%
   arrange(upc)
 
-priv_lab_na <- full_coffee %>%
+priv_lab_na <- full_cheese %>%
   filter(upc %in% multi_brand_descr) %>%
   distinct(upc, brand_descr) %>%
   filter(brand_descr == 'CTL BR') %>%
   select(upc) %>%
   pull()
 
-# there are no private label upcs with NA brand descriptions
-# full_coffee <- full_coffee %>%
+# there are no private label products with NA brand description
+# full_cheese <- full_cheese %>%
 #  mutate(brand_descr = if_else(upc %in% priv_lab_na, 'CTL BR', brand_descr))
 ```
 
 When a upc has no sales in a given `week_end` it is not recorded in the data. We need to impute the weeks that a given
-upc had zero sales. First, create `full_weeks` which contains all values of `week_end`. Split `full_coffee` into
+upc had zero sales. First, create `full_weeks` which contains all values of `week_end`. Split `full_cheese` into
 separate `tibbles`, one for each store and upc combination. Loop over the separated `tibbles` and if the number of
 observations for a given upc in a given store is less than the full number of weeks, do an anti-join with `full_weeks`
 to get the missing `week_end` values. Create a matrix `missing_data` which will contain the missing observations. Fill
 `missing_data` in with the variables that stay constant over time, then change `week_end` to be the missing `week_end` 
 values. Change `price` to `NA`, and fill in `units` and `sales` with zero. Use `bind_rows` to add `missing_data` back 
-to the original data. Recombine the separate `full_coffee` data into one `tibble`.
+to the original data. Recombine the separate `full_cheese` data into one `tibble`.
 ```{r}
-full_weeks <- full_coffee %>%
+full_weeks <- full_cheese %>%
   distinct(week_end)
 
-full_coffee <- full_coffee %>%
+full_cheese <- full_cheese %>%
   group_split(store_code_uc, upc)
 
-for (i in 1:length(full_coffee)) {
+for (i in 1:length(full_cheese)) {
   
-  if(nrow(full_coffee[[i]]) < length(full_weeks$week_end)) {
+  if(nrow(full_cheese[[i]]) < length(full_weeks$week_end)) {
   
-  vars_vec <- full_coffee[[i]][1,]
+  vars_vec <- full_cheese[[i]][1,]
   
   missing_weeks <- full_weeks %>%
-      anti_join(full_coffee[[i]], by = 'week_end') %>%
+      anti_join(full_cheese[[i]], by = 'week_end') %>%
       pull()
 
   missing_data <- matrix(nrow = length(missing_weeks),
@@ -295,18 +294,18 @@ for (i in 1:length(full_coffee)) {
 
   missing_data[c('units', 'sales')] <- 0
     
-  full_coffee[[i]] <- full_coffee[[i]] %>%
+  full_cheese[[i]] <- full_cheese[[i]] %>%
     bind_rows(missing_data)
   
   }}
 
-full_coffee <- bind_rows(full_coffee)
+full_cheese <- bind_rows(full_cheese)
 ```
 
 Check that all upc codes have observations for the full time period and that none have more observations than they 
 should.
 ```{r}
-full_coffee %>%
+full_cheese %>%
   group_by(store_code_uc, upc) %>%
   summarize(n_weeks = n()) %>%
   filter(n_weeks < length(full_weeks$week_end) |
@@ -315,22 +314,21 @@ full_coffee %>%
 
 Create numeric `week_end` variable `n_week_end`.
 ```{r}
-full_coffee <- full_coffee %>%
+full_cheese <- full_cheese %>%
   mutate(n_week_end = as.numeric(week_end))
 ```
 
 Save the cleaned data and save files for each state. 
 ```{r}
-save(full_coffee, file = 'coffee_clean.RData')
+save(full_cheese, file = 'cheese_clean.RData')
 
-mn_coffee <- full_coffee %>% filter(fips_state_descr == 'MN')
-il_coffee <- full_coffee %>% filter(fips_state_descr == 'IL')
-mo_coffee <- full_coffee %>% filter(fips_state_descr == 'MO')
-nd_coffee <- full_coffee %>% filter(fips_state_descr == 'ND')
+mn_cheese <- full_cheese %>% filter(fips_state_descr == 'MN')
+il_cheese <- full_cheese %>% filter(fips_state_descr == 'IL')
+mo_cheese <- full_cheese %>% filter(fips_state_descr == 'MO')
+nd_cheese <- full_cheese %>% filter(fips_state_descr == 'ND')
 
-save(mn_coffee, file="mn_coffee_clean.RData")
-save(il_coffee, file="il_coffee_clean.RData")
-save(mo_coffee, file="mo_coffee_clean.RData")
-save(nd_coffee, file="nd_coffee_clean.RData")
+save(mn_cheese, file="mn_cheese_clean.RData")
+save(il_cheese, file="il_cheese_clean.RData")
+save(mo_cheese, file="mo_cheese_clean.RData")
+save(nd_cheese, file="nd_cheese_clean.RData")
 ```
-
