@@ -119,37 +119,15 @@ full_13 <- move_13 %>%
 rm(move_13, stores_13, rms_13, products)
 ```
 
-Read in file containing the manufacturer upc prefixes. The captain and validator for cereal are General Mills and
-Kellogg's, respectively. Create separate vectors with the upc prefixes for both General Mills and Kellogg's called
-`gm_prefs` and `kel_prefs`.
+Create `full_cosmetics` by combining the data for 2011, 2013 and 2012. Convert `week_end` to be a date variable and create a numeric version called `n_week_end` which is needed for microsynth. Create `sales` by multiplying `units` and `price`. Since we don't know who the captain and validator are, we assign the private label manufacturer and assign the rest to others.
 ```{r}
-prefixes <- read_xlsx('Manufacturer UPC Prefixes - From GS1 Company Database.xlsx')
-
-gm_prefs <- prefixes %>%
-  filter(manufacturer == 'General Mills') %>%
-  select(prefix) %>%
-  pull()
-
-kel_prefs <- prefixes %>%
-  filter(manufacturer == "Kellogg's") %>%
-  select(prefix) %>%
-  pull()
-```
-
-Create `full_cereal` by combining the data for 2011 and 2012. Convert `week_end` to be a date variable and create a
-numeric version called `n_week_end` which is needed for microsynth. Create `sales` by multiplying `units` and `price`.
-Create `manufacturer` by assinging the correct manufacturer based on upc prefixes. We assign General Mills, Kellogg's,
-Private Label, and upcs belonging to any other manufacturers fall under 'other'.
-```{r}
-full_cereal <- full_11 %>%
-  bind_rows(full_12) %>%
+full_cosmetics <- full_11 %>%
+  bind_rows(full_12) %>% bind_rows(full_13) %>% 
   mutate(week_end = ymd(week_end),
          sales = units * price,
-         manufacturer = if_else(grepl(paste(gm_prefs, collapse = '|'), upc), 'General Mills',
-                        if_else(grepl(paste(kel_prefs, collapse = '|'), upc), "Kellogg's",
-                        if_else(brand_descr == 'CTL BR', 'Private Label', 'Other', missing = 'Other'))))
+         manufacturer =if_else(brand_descr == 'CTL BR', 'Private Label', 'Other', missing = 'Other'))
 
-rm(full_11, full_12, prefixes)
+rm(full_11, full_12, full_13)
 ```
 
 Create `missing_stores` vector which contains the store codes that don't show up in all years in the data. First,
@@ -157,11 +135,11 @@ get each distinct combination of `store_code_uc` and `panel_year`, then summariz
 for each store, filter for the `store_code_uc` that have less than two years, and store those codes in the vector
 `missing_stores`.
 ```{r}
-missing_stores <- full_cereal %>%
+missing_stores <- full_cosmetics %>%
   distinct(store_code_uc, panel_year) %>%
   group_by(store_code_uc) %>%
   summarize(n_years = n()) %>%
-  filter(n_years < 2) %>%
+  filter(n_years < length(unique(year(full_cosmetics$week_end)))) %>%
   select(store_code_uc) %>%
   pull()
 ```
@@ -171,7 +149,7 @@ unique conbinations of `store_code_uc` and `retailer_code`, then group by `store
 observations - this is the number of `retailer_code` values for the given `store_code_uc`. Then, filter for the 
 `store_code_uc` that have more than one retailer code and pull them into a vector.
 ```{r}
-retailer_switchers <- full_cereal %>%
+retailer_switchers <- full_cosmetics %>%
   distinct(store_code_uc, retailer_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_rets = n()) %>%
@@ -183,7 +161,7 @@ retailer_switchers <- full_cereal %>%
 Using a similar approach as the previous chunk explains, create a tbl that contains the `store_code_uc` that have
 multiple `parent_code` values.
 ```{r}
-parent_switchers <- full_cereal %>%
+parent_switchers <- full_cosmetics %>%
   distinct(store_code_uc, parent_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_parent = n()) %>%
@@ -195,7 +173,7 @@ parent_switchers <- full_cereal %>%
 Filter for the store codes that do not switch retailer or parent codes and are not missing from one of the years.
 Replace missing `retailer_code` values with the `parent_code`.
 ```{r}
-full_cereal <- full_cereal %>%
+full_cosmetics <- full_cosmetics %>%
   filter(!store_code_uc %in% unique(c(parent_switchers, retailer_switchers, missing_stores))) %>%
   mutate(retailer_code = if_else(is.na(retailer_code), parent_code, retailer_code))
 
@@ -205,12 +183,12 @@ rm(parent_switchers, retailer_switchers, missing_stores)
 Create `multi_brand_descr` which contains the upc codes that have multiple brand descriptions. We assume that upc codes
 with one valid brand description and an `NA` value as the other description actually have the same description and are
 the same product. Create `non_na_descr` which contains the upc codes that have multiple brand descriptions that don't
-include an `NA` value. Filter `full_cereal` for the upc codes that have multiple valid brand descriptions and compare
+include an `NA` value. Filter `full_cosmetics` for the upc codes that have multiple valid brand descriptions and compare
 them to see if the upc code was used for different products belonging to different manufacturers. All the upc codes in
 this category that had multiple brand descriptions were the same product, they just had a slight change in how the
-`brand_descr` was entered.
+`brand_descr` was entered. **We dont need to check this at this time, because we don't have a captain and validator. 
 ```{r}
-multi_brand_descr <- full_cereal %>%
+multi_brand_descr <- full_cosmetics %>%
   distinct(upc, brand_descr) %>%
   group_by(upc) %>%
   summarize(n = n()) %>%
@@ -218,7 +196,7 @@ multi_brand_descr <- full_cereal %>%
   select(upc) %>%
   pull()
 
-non_na_descr <- full_cereal %>%
+non_na_descr <- full_cosmetics %>%
   filter(upc %in% multi_brand_descr) %>%
   distinct(upc, brand_descr) %>%
   arrange(upc) %>%
@@ -229,53 +207,53 @@ non_na_descr <- full_cereal %>%
   select(upc) %>%
   pull()
 
-full_cereal %>%
-  filter(upc %in% non_na_descr) %>%
-  distinct(upc, brand_descr) %>%
-  arrange(upc)
+#full_cosmetics %>%
+  #filter(upc %in% non_na_descr) %>%
+  #distinct(upc, brand_descr) %>%
+  #arrange(upc)
 ```
 
 Check if there are private label products with `NA` brand description values, which we should change to `'CTL BR'` so that they are aggregated under the correct manufacturer. Change `NA` brand descriptions for private label products. 
 ```{r}
-full_cereal %>%
+full_cosmetics %>%
   filter(upc %in% multi_brand_descr) %>%
   distinct(upc, brand_descr) %>%
   arrange(upc)
 
-priv_lab_na <- full_cereal %>%
+priv_lab_na <- full_cosmetics %>%
   filter(upc %in% multi_brand_descr) %>%
   distinct(upc, brand_descr) %>%
   filter(brand_descr == 'CTL BR') %>%
   select(upc) %>%
   pull()
 
-full_cereal <- full_cereal %>%
+full_cosmetics <- full_cosmetics %>%
   mutate(brand_descr = if_else(upc %in% priv_lab_na, 'CTL BR', brand_descr))
 ```
 
 When a upc has no sales in a given `week_end` it is not recorded in the data. We need to impute the weeks that a given
-upc had zero sales. First, create `full_weeks` which contains all values of `week_end`. Split `full_cereal` into
+upc had zero sales. First, create `full_weeks` which contains all values of `week_end`. Split `full_cosmetics` into
 separate `tibbles`, one for each store and upc combination. Loop over the separated `tibbles` and if the number of
 observations for a given upc in a given store is less than the full number of weeks, do an anti-join with `full_weeks`
 to get the missing `week_end` values. Create a matrix `missing_data` which will contain the missing observations. Fill
 `missing_data` in with the variables that stay constant over time, then change `week_end` to be the missing `week_end` 
 values. Change `price` to `NA`, and fill in `units` and `sales` with zero. Use `bind_rows` to add `missing_data` back 
-to the original data. Recombine the separate `full_cereal` data into one `tibble`.
+to the original data. Recombine the separate `full_cosmetics` data into one `tibble`.
 ```{r}
-full_weeks <- full_cereal %>%
+full_weeks <- full_cosmetics %>%
   distinct(week_end)
 
-full_cereal <- full_cereal %>%
+full_cosmetics <- full_cosmetics %>%
   group_split(store_code_uc, upc)
 
-for (i in 1:length(full_cereal)) {
+for (i in 1:length(full_cosmetics)) {
   
-  if(nrow(full_cereal[[i]]) < length(full_weeks$week_end)) {
+  if(nrow(full_cosmetics[[i]]) < length(full_weeks$week_end)) {
   
-  vars_vec <- full_cereal[[i]][1,]
+  vars_vec <- full_cosmetics[[i]][1,]
   
   missing_weeks <- full_weeks %>%
-      anti_join(full_cereal[[i]], by = 'week_end') %>%
+      anti_join(full_cosmetics[[i]], by = 'week_end') %>%
       pull()
 
   missing_data <- matrix(nrow = length(missing_weeks),
@@ -290,18 +268,18 @@ for (i in 1:length(full_cereal)) {
 
   missing_data[c('units', 'sales')] <- 0
     
-  full_cereal[[i]] <- full_cereal[[i]] %>%
+  full_cosmetics[[i]] <- full_cosmetics[[i]] %>%
     bind_rows(missing_data)
   
   }}
 
-full_cereal <- bind_rows(full_cereal)
+full_cosmetics <- bind_rows(full_cosmetics)
 ```
 
 Check that all upc codes have observations for the full time period and that none have more observations than they 
 should.
 ```{r}
-full_cereal %>%
+full_cosmetics %>%
   group_by(store_code_uc, upc) %>%
   summarize(n_weeks = n()) %>%
   filter(n_weeks < length(full_weeks$week_end) |
@@ -310,23 +288,23 @@ full_cereal %>%
 
 Create numeric `week_end` variable `n_week_end`.
 ```{r}
-full_cereal <- full_cereal %>%
+full_cosmetics <- full_cosmetics %>%
   mutate(n_week_end = as.numeric(week_end))
 ```
 
 Save the cleaned data and save files for each state. 
 ```{r}
-save(full_cereal, file = 'cereal_clean.RData')
+save(full_cosmetics, file = 'cosmetics_clean.RData')
 
-mn_cereal <- full_cereal %>% filter(fips_state_descr == 'MN')
-il_cereal <- full_cereal %>% filter(fips_state_descr == 'IL')
-mo_cereal <- full_cereal %>% filter(fips_state_descr == 'MO')
-nd_cereal <- full_cereal %>% filter(fips_state_descr == 'ND')
+mn_cosmetics <- full_cosmetics %>% filter(fips_state_descr == 'MN')
+il_cosmetics <- full_cosmetics %>% filter(fips_state_descr == 'IL')
+mo_cosmetics <- full_cosmetics %>% filter(fips_state_descr == 'MO')
+nd_cosmetics <- full_cosmetics %>% filter(fips_state_descr == 'ND')
 
-save(mn_cereal, file="mn_cereal_clean.RData")
-save(il_cereal, file="il_cereal_clean.RData")
-save(mo_cereal, file="mo_cereal_clean.RData")
-save(nd_cereal, file="nd_cereal_clean.RData")
+save(mn_cosmetics, file="mn_cosmetics_clean.RData")
+save(il_cosmetics, file="il_cosmetics_clean.RData")
+save(mo_cosmetics, file="mo_cosmetics_clean.RData")
+save(nd_cosmetics, file="nd_cosmetics_clean.RData")
 ```
 
 
