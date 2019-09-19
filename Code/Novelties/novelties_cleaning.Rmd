@@ -236,7 +236,14 @@ full_novelties %>%
   distinct(upc, brand_descr) %>%
   arrange(upc)
 ```
-All of the upc codes with multiple brand descriptions are the same product.
+
+The upc code `004154875150` has two different brand descriptions that aren't for the same product. Darigold and Dreyers
+are separate companies and I can't find any products that fall under both brands. So, we drop that upc code from the 
+data.
+```{r}
+full_novelties <- full_novelties %>%
+  filter(upc != '004154875150')
+```
 
 Check if there are private label products with `NA` brand description values, which we should change to `'CTL BR'` so
 that they are aggregated under the correct manufacturer. Change `NA` brand descriptions for private label products. 
