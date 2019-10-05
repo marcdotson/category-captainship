@@ -7,14 +7,16 @@ Note: This document contains all the code used to merge and clean data for the c
 
 Install library.
 ```{r eval=FALSE, include=FALSE}
-install.packages("tidyverse")
-install.packages("lubridate")
+#install.packages("tidyverse")
 ```
 
-Load library and increase memory limit.
+Load library.
 ```{r}
+library(plyr)
 library(tidyverse)
 library(lubridate)
+library(readxl)
+library(foreach)
 ```
 
 Untar the `canned_soup.tgz` file. Read in the movement, stores, and rms versions files, and the products master file.
@@ -71,29 +73,50 @@ full_13 <- move_13 %>%
 rm(move_13, stores_13, rms_13, products)
 ```
 
-Combine `full_11`, `full_12`, and `full_13` into one file, `full_11_12_13` containing the data for all years.
-Change `week_end` variable to year-month-day format. Create variable `sales` which is `units` * `price`.
+Read in file containing the manufacturer upc prefixes. The captain and validator for cereal are Campbell's and
+General Mills, respectively. Create separate vectors with the upc prefixes for both Campbell's and GM called
+`campbells_prefs` and `gm_prefs`.
 ```{r}
-full_11_12_13 <- full_11 %>%
+prefixes <- read_xlsx('Manufacturer UPC Prefixes - From GS1 Company Database.xlsx')
+
+campbells_prefs <- prefixes %>%
+  filter(manufacturer == "Campbell's") %>%
+  select(prefix) %>%
+  pull()
+
+gm_prefs <- prefixes %>%
+  filter(manufacturer == "General Mills") %>%
+  select(prefix) %>%
+  pull()
+```
+
+Create `full_soup` by combining the data for 2011 and 2012. Convert `week_end` to be a date variable and create a
+numeric version called `n_week_end` which is needed for microsynth. Create `sales` by multiplying `units` and `price`.
+Create `manufacturer` by assinging the correct manufacturer based on upc prefixes. We assign Smucker's, Kraft,
+Private Label, and upcs belonging to any other manufacturers fall under 'other'.
+```{r}
+full_soup <- full_11 %>%
   bind_rows(full_12) %>%
   bind_rows(full_13) %>%
-  mutate(week_end = ymd(week_end), 
+  mutate(week_end = ymd(week_end),
          sales = units * price,
-         manuf_name = substr(brand_descr, 1, 3))
+         manufacturer = if_else(grepl(paste(campbells_prefs, collapse = '|'), upc), "Campbell's",
+                        if_else(grepl(paste(gm_prefs, collapse = '|'), upc), "General Mills",
+                        if_else(brand_descr == 'CTL BR', 'Private Label', 'Other', missing = 'Other'))))
 
-rm(full_11, full_12, full_13)
+rm(full_11, full_12, full_13, prefixes)
 ```
 
 Create `missing_stores` vector which contains the store codes that don't show up in all years in the data. First,
 get each distinct combination of `store_code_uc` and `panel_year`, then summarize by counting the number of years
-for each store, filter for the `store_code_uc` that have less than three years, and store those codes in the vector
+for each store, filter for the `store_code_uc` that have less than two years, and store those codes in the vector
 `missing_stores`.
 ```{r}
-missing_stores <- full_11_12_13 %>%
+missing_stores <- full_soup %>%
   distinct(store_code_uc, panel_year) %>%
   group_by(store_code_uc) %>%
   summarize(n_years = n()) %>%
-  filter(n_years < 3) %>%
+  filter(n_years < length(unique(year(full_soup$week_end)))) %>%
   select(store_code_uc) %>%
   pull()
 ```
@@ -103,7 +126,7 @@ unique conbinations of `store_code_uc` and `retailer_code`, then group by `store
 observations - this is the number of `retailer_code` values for the given `store_code_uc`. Then, filter for the 
 `store_code_uc` that have more than one retailer code and pull them into a vector.
 ```{r}
-retailer_switchers <- full_11_12_13 %>%
+retailer_switchers <- full_soup %>%
   distinct(store_code_uc, retailer_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_rets = n()) %>%
@@ -115,7 +138,7 @@ retailer_switchers <- full_11_12_13 %>%
 Using a similar approach as the previous chunk explains, create a tbl that contains the `store_code_uc` that have
 multiple `parent_code` values.
 ```{r}
-parent_switchers <- full_11_12_13 %>%
+parent_switchers <- full_soup %>%
   distinct(store_code_uc, parent_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_parent = n()) %>%
@@ -124,36 +147,141 @@ parent_switchers <- full_11_12_13 %>%
   pull()
 ```
 
-Create one vector with the store codes to remove because they switch retailer or parent codes.
+Filter for the store codes that do not switch retailer or parent codes and are not missing from one of the years.
+Replace missing `retailer_code` values with the `parent_code`.
 ```{r}
-switchers <- unique(c(parent_switchers, retailer_switchers, missing_stores))
+full_soup <- full_soup %>%
+  filter(!store_code_uc %in% unique(c(parent_switchers, retailer_switchers, missing_stores))) %>%
+  mutate(retailer_code = if_else(is.na(retailer_code), parent_code, retailer_code))
+
+rm(parent_switchers, retailer_switchers, missing_stores)
 ```
 
-Using the `switchers` vector, filter out the store codes that switch retailer or parent codes.
+Create `multi_brand_descr` which contains the upc codes that have multiple brand descriptions. We assume that upc codes
+with one valid brand description and an `NA` value as the other description actually have the same description and are
+the same product. Create `non_na_descr` which contains the upc codes that have multiple brand descriptions that don't
+include an `NA` value. Filter `full_soup` for the upc codes that have multiple valid brand descriptions and compare
+them to see if the upc code was used for different products belonging to different manufacturers. All the upc codes in
+this category that had multiple brand descriptions were the same product, they just had a slight change in how the
+`brand_descr` was entered.
 ```{r}
-full_11_12_13 <- full_11_12_13 %>%
-  filter(!store_code_uc %in% switchers)
+multi_brand_descr <- full_soup %>%
+  distinct(upc, brand_descr) %>%
+  group_by(upc) %>%
+  summarize(n = n()) %>%
+  filter(n > 1) %>%
+  select(upc) %>%
+  pull()
 
-rm(parent_switchers, retailer_switchers, switchers, missing_stores)
+non_na_descr <- full_soup %>%
+  filter(upc %in% multi_brand_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc) %>%
+  filter(!is.na(brand_descr)) %>%
+  group_by(upc) %>%
+  summarize(n = n()) %>%
+  filter(n > 1) %>%
+  select(upc) %>%
+  pull()
+
+full_soup %>%
+  filter(upc %in% non_na_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc)
 ```
 
-Use `mutate` to replace the missing `retailer_code` values with the `parent_code`.
+Check if there are private label products with `NA` brand description values, which we should change to `'CTL BR'` so
+that they are aggregated under the correct manufacturer. Change `NA` brand descriptions for private label products. 
 ```{r}
-full_11_12_13 <- full_11_12_13 %>%
-  mutate(retailer_code = ifelse(is.na(retailer_code), parent_code, retailer_code))
+full_soup %>%
+  filter(upc %in% multi_brand_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc)
+
+priv_lab_na <- full_soup %>%
+  filter(upc %in% multi_brand_descr) %>%
+  distinct(upc, brand_descr) %>%
+  filter(brand_descr == 'CTL BR') %>%
+  select(upc) %>%
+  pull()
+
+# there are no private label upcs with NA brand descriptions
+# full_soup <- full_soup %>%
+#  mutate(brand_descr = if_else(upc %in% priv_lab_na, 'CTL BR', brand_descr))
 ```
 
-Save the cleaned canned soup data. Filter for each state and save the cleaned state files. 
+When a upc has no sales in a given `week_end` it is not recorded in the data. We need to impute the weeks that a given
+upc had zero sales. First, create `full_weeks` which contains all values of `week_end`. Split `full_soup` into
+separate `tibbles`, one for each store and upc combination. Loop over the separated `tibbles` and if the number of
+observations for a given upc in a given store is less than the full number of weeks, do an anti-join with `full_weeks`
+to get the missing `week_end` values. Create a matrix `missing_data` which will contain the missing observations. Fill
+`missing_data` in with the variables that stay constant over time, then change `week_end` to be the missing `week_end` 
+values. Change `price` to `NA`, and fill in `units` and `sales` with zero. Use `bind_rows` to add `missing_data` back 
+to the original data. Recombine the separate `full_soup` data into one `tibble`.
 ```{r}
-save(full_11_12_13, file="can_soup_clean.RData")
+full_weeks <- full_soup %>%
+  distinct(week_end)
 
-mn_data <- full_11_12_13 %>% filter(fips_state_descr=="MN")
-il_data <- full_11_12_13 %>% filter(fips_state_descr=="IL")
-mo_data <- full_11_12_13 %>% filter(fips_state_descr=="MO")
-nd_data <- full_11_12_13 %>% filter(fips_state_descr=="ND")
+full_soup <- full_soup %>%
+  group_split(store_code_uc, upc)
 
-save(mn_data, file="mn_can_soup_clean.RData")
-save(il_data, file="dc_can_soup_clean.RData")
-save(mo_data, file="mo_can_soup_clean.RData")
-save(nd_data, file="nd_can_soup_clean.RData")
+for (i in 1:length(full_soup)) {
+  
+  if(nrow(full_soup[[i]]) < length(full_weeks$week_end)) {
+  
+  vars_vec <- full_soup[[i]][1,]
+  
+  missing_weeks <- full_weeks %>%
+      anti_join(full_soup[[i]], by = 'week_end') %>%
+      pull()
+
+  missing_data <- matrix(nrow = length(missing_weeks),
+                         ncol = length(vars_vec)
+                         )
+
+  missing_data <- map_df(1:length(missing_weeks), function(y) missing_data[y,] <- vars_vec)
+
+  missing_data['week_end'] <- missing_weeks
+  
+  missing_data['price'] <- NA
+
+  missing_data[c('units', 'sales')] <- 0
+    
+  full_soup[[i]] <- full_soup[[i]] %>%
+    bind_rows(missing_data)
+  
+  }}
+
+full_soup <- bind_rows(full_soup)
+```
+
+Check that all upc codes have observations for the full time period and that none have more observations than they 
+should.
+```{r}
+full_soup %>%
+  group_by(store_code_uc, upc) %>%
+  summarize(n_weeks = n()) %>%
+  filter(n_weeks < length(full_weeks$week_end) |
+         n_weeks > length(full_weeks$week_end))
+```
+
+Create numeric `week_end` variable `n_week_end`.
+```{r}
+full_soup <- full_soup %>%
+  mutate(n_week_end = as.numeric(week_end))
+```
+
+Save the cleaned data and save files for each state. 
+```{r}
+save(full_soup, file = 'can_soup_clean.RData')
+
+mn_soup <- full_soup %>% filter(fips_state_descr == 'MN')
+il_soup <- full_soup %>% filter(fips_state_descr == 'IL')
+mo_soup <- full_soup %>% filter(fips_state_descr == 'MO')
+nd_soup <- full_soup %>% filter(fips_state_descr == 'ND')
+
+save(mn_soup, file="mn_can_soup_clean.RData")
+save(il_soup, file="il_can_soup_clean.RData")
+save(mo_soup, file="mo_can_soup_clean.RData")
+save(nd_soup, file="nd_can_soup_clean.RData")
 ```

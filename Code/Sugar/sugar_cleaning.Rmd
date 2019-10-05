@@ -132,12 +132,12 @@ domino_prefs <- prefixes %>%
   pull()
 ```
 
-Create `full_sugar` by combining the data for 2011 and 2012. Convert `week_end` to be a date variable and create a
+Create `full_sugar` by combining the data for 2013, 2014 and 2012. Convert `week_end` to be a date variable and create a
 numeric version called `n_week_end` which is needed for microsynth. Create `sales` by multiplying `units` and `price`.
-Create `manufacturer` by assinging the correct manufacturer based on upc prefixes. We assign General Mills, Kellogg's,
+Create `manufacturer` by assinging the correct manufacturer based on upc prefixes. We assign United Sugars, Domino,
 Private Label, and upcs belonging to any other manufacturers fall under 'other'.
 ```{r}
-full_sugar <- full_141 %>%
+full_sugar <- full_14 %>%
   bind_rows(full_12) %>% bind_rows(full_13) %>% 
   mutate(week_end = ymd(week_end),
          sales = units * price,
