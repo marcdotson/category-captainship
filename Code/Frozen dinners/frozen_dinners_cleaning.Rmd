@@ -5,75 +5,76 @@ date: "August 13, 2018"
 output: github_document
 ---
 
-Install packages.
-```{r eval =FALSE, include=FALSE}
+Note: This document contains all the code used to merge and clean data for the frozen dinners category. 
+
+Install library.
+```{r eval=FALSE, include=FALSE}
 #install.packages("tidyverse")
-#install.packages("lubridate")
 ```
 
-Load libraries.
-```{r results='hide'}
+Load library.
+```{r}
 library(tidyverse)
 library(lubridate)
+library(readxl)
 ```
 
-Read in the files from the frozen_dinners_entries.tgz for 2011.
+Unzip file, then read in files for 2011 using a for loop which reads in a file if it is a 2011 movement file and binds each
+of the separate files into one. Read in the 2011 stores and rms files, and the products master file.
 ```{r}
-frozen_dinners_files <- untar("frozen_dinners_entries.tgz", list = TRUE)
+frozen_dins_files <- untar('frozen_dinners_entries.tgz.tgz', list = TRUE)
 
-#untar("frozen_dinners_entries.tgz")
+untar('frozen_dinners_entries.tgz.tgz')
 
 move_11 <- tibble()
 
-for (i in seq_along(frozen_dinners_files)) {
+for (i in seq_along(frozen_dins_files)) {
+  
+  if (substr(frozen_dins_files[i], 22, 40) == "2011/Movement_Files") {
     
-    if (substr(frozen_dinners_files[i], 22, 40) == "2011/Movement_Files") {
-        
-        temp_move_11 <- read_tsv(frozen_dinners_files[i])
-        
-        move_11 <- move_11 %>%
-            
-            bind_rows(temp_move_11)
-        
-        rm(temp_move_11)
-    }
+    temp_move_11 <- read_tsv(frozen_dins_files[i])
     
+      move_11 <- move_11 %>%
+      
+        bind_rows(temp_move_11)
+      
+      rm(temp_move_11)
+      
+  }
+  
 }
-
-products <- read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote = "")
 
 stores_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv")
 
 rms_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/rms_versions_2011.tsv")
 
+products <- read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote = "")
+
 full_11 <- move_11 %>%
-  left_join(stores_11, by ="store_code_uc") %>%
-  filter(channel_code == "F" & fips_state_descr %in% c("ND", "MN", "MO", "IL")) %>%
+  left_join(stores_11, by ="store_code_uc") %>% 
+  filter(channel_code == "F" & fips_state_descr %in% c("ND","MN","MO","IL")) %>%
   left_join(rms_11, by = "upc") %>%
   left_join(products, by = c("upc", "upc_ver_uc"))
 
-save(full_11, file = "full_11.RData")
-
-rm(move_11, stores_11, rms_11, full_11)
+rm(move_11, rms_11, stores_11)
 ```
 
-Read in the files for 2012.
+Create `full_12` the same way as `full_11`.
 ```{r}
 move_12 <- tibble()
 
-for (i in seq_along(frozen_dinners_files)) {
+for (i in seq_along(frozen_dins_files)) {
+  
+  if (substr(frozen_dins_files[i], 22, 40) == "2012/Movement_Files") {
     
-    if (substr(frozen_dinners_files[i], 22, 40) == "2012/Movement_Files") {
-        
-        temp_move_12 <- read_tsv(frozen_dinners_files[i])
-        
-        move_12 <- move_12 %>%
-            
-            bind_rows(temp_move_12)
-        
-        rm(temp_move_12)
-    }
+    temp_move_12 <- read_tsv(frozen_dins_files[i])
     
+      move_12 <- move_12 %>%
+      
+        bind_rows(temp_move_12)
+      
+      rm(temp_move_12)
+  }
 }
 
 stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv")
@@ -86,28 +87,25 @@ full_12 <- move_12 %>%
   left_join(rms_12, by = "upc") %>%
   left_join(products, by = c("upc", "upc_ver_uc"))
 
-save(full_12, file = "full_12.RData")
-
-rm(move_12, stores_12, rms_12, full_12)
+rm(move_12, stores_12, rms_12)
 ```
 
-Read in the files for 2013.
+Repeat for 2013.
 ```{r}
 move_13 <- tibble()
 
-for (i in seq_along(frozen_dinners_files)) {
+for (i in seq_along(frozen_dins_files)) {
+  
+  if (substr(frozen_dins_files[i], 22, 40) == "2013/Movement_Files") {
     
-    if (substr(frozen_dinners_files[i], 22, 40) == "2013/Movement_Files") {
-        
-        temp_move_13 <- read_tsv(frozen_dinners_files[i])
-        
-        move_13 <- move_13 %>%
-            
-            bind_rows(temp_move_13)
-        
-        rm(temp_move_13)
-    }
+    temp_move_13 <- read_tsv(frozen_dins_files[i])
     
+      move_13 <- move_13 %>%
+      
+        bind_rows(temp_move_13)
+      
+      rm(temp_move_13)
+  }
 }
 
 stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", guess_max = 20000)
@@ -120,36 +118,52 @@ full_13 <- move_13 %>%
   left_join(rms_13, by = "upc") %>%
   left_join(products, by = c("upc", "upc_ver_uc"))
 
-rm(move_13, stores_13, rms_13, products)
+rm(move_13, stores_13, rms_13, products, frozen_dins_files)
 ```
 
-Combine all three years into one file, `full_data`. Change `week_end` variable to year-month-day format. Create
-variable `sales` which is `units` * `price`. Create variable for manufacturer from the first 3 digits of the brand
-description.
+Read in file containing the manufacturer upc prefixes. The captain and validator for baking needs are Nestle and
+Hershey's, respectively. Create separate vectors with the upc prefixes for both Nestle and Hershey's called
+`nestle_prefs` and `hersh_prefs`.
 ```{r}
-load('full_11.RData')
-load('full_12.RData')
+prefixes <- read_xlsx('Manufacturer UPC Prefixes - From GS1 Company Database.xlsx')
 
-full_data <- full_11 %>%
-  bind_rows(full_12) %>%
-  bind_rows(full_13) %>%
-  mutate(week_end = ymd(week_end), 
+nestle_prefs <- prefixes %>%
+  filter(manufacturer == 'Nestle') %>%
+  select(prefix) %>%
+  pull()
+
+hersh_prefs <- prefixes %>%
+  filter(manufacturer == "Hershey's") %>%
+  select(prefix) %>%
+  pull()
+```
+
+Create `full_frozen_dins` by combining the data for 2011-2013. Convert `week_end` to be a date variable. Create `sales` by
+multiplying `units` and `price`. Create `manufacturer` by assigning the correct manufacturer based on upc prefixes. We
+assign Nestle, Hershey's, Private Label, and upcs belonging to any other manufacturers fall under 'other'.
+```{r}
+full_frozen_dins <- full_11 %>%
+  bind_rows(full_12) %>% 
+  bind_rows(full_13) %>% 
+  mutate(week_end = ymd(week_end),
          sales = units * price,
-         manuf_name = substr(brand_descr, 1, 3))
+         manufacturer = if_else(grepl(paste(nestle_prefs, collapse = '|'), upc), 'Nestle',
+                        if_else(grepl(paste(hersh_prefs, collapse = '|'), upc), "Hershey's",
+                        if_else(brand_descr == 'CTL BR', 'Private Label', 'Other', missing = 'Other'))))
 
-rm(full_11, full_12, full_13)
+rm(full_11, full_12, full_13, prefixes, hersh_prefs, nestle_prefs)
 ```
 
 Create `missing_stores` vector which contains the store codes that don't show up in all years in the data. First,
 get each distinct combination of `store_code_uc` and `panel_year`, then summarize by counting the number of years
-for each store, filter for the `store_code_uc` that have less than three years, and store those codes in the vector
+for each store, filter for the `store_code_uc` that have less than two years, and store those codes in the vector
 `missing_stores`.
 ```{r}
-missing_stores <- full_data %>%
+missing_stores <- full_frozen_dins %>%
   distinct(store_code_uc, panel_year) %>%
   group_by(store_code_uc) %>%
   summarize(n_years = n()) %>%
-  filter(n_years < 3) %>%
+  filter(n_years < length(unique(year(full_frozen_dins$week_end)))) %>%
   select(store_code_uc) %>%
   pull()
 ```
@@ -159,7 +173,7 @@ unique conbinations of `store_code_uc` and `retailer_code`, then group by `store
 observations - this is the number of `retailer_code` values for the given `store_code_uc`. Then, filter for the 
 `store_code_uc` that have more than one retailer code and pull them into a vector.
 ```{r}
-retailer_switchers <- full_data %>%
+retailer_switchers <- full_frozen_dins %>%
   distinct(store_code_uc, retailer_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_rets = n()) %>%
@@ -171,7 +185,7 @@ retailer_switchers <- full_data %>%
 Using a similar approach as the previous chunk explains, create a tbl that contains the `store_code_uc` that have
 multiple `parent_code` values.
 ```{r}
-parent_switchers <- full_data %>%
+parent_switchers <- full_frozen_dins %>%
   distinct(store_code_uc, parent_code) %>%
   group_by(store_code_uc) %>%
   summarize(n_parent = n()) %>%
@@ -180,40 +194,145 @@ parent_switchers <- full_data %>%
   pull()
 ```
 
-Create one vector with the store codes to remove because they switch retailer or parent codes or they don't show up
-in all the years in the data.
+Filter for the store codes that do not switch retailer or parent codes and are not missing from one of the years.
+Replace missing `retailer_code` values with the `parent_code`.
 ```{r}
-remove_stores <- unique(c(parent_switchers, retailer_switchers, missing_stores))
+full_frozen_dins <- full_frozen_dins %>%
+  filter(!store_code_uc %in% unique(c(parent_switchers, retailer_switchers, missing_stores))) %>%
+  mutate(retailer_code = if_else(is.na(retailer_code), parent_code, retailer_code))
+
+rm(parent_switchers, retailer_switchers, missing_stores)
 ```
 
-Using the `remove_stores` vector, filter out the store codes that switch retailer or parent codes or don't show up
-in all the years in the data.
+Create `multi_brand_descr` which contains the upc codes that have multiple brand descriptions. We assume that upc codes
+with one valid brand description and an `NA` value as the other description actually have the same description and are
+the same product. Create `non_na_descr` which contains the upc codes that have multiple brand descriptions that don't
+include an `NA` value. Filter `full_frozen_dins` for the upc codes that have multiple valid brand descriptions and compare
+them to see if the upc code was used for different products belonging to different manufacturers. All the upc codes in
+this category that had multiple brand descriptions were the same product, they just had a slight change in how the
+`brand_descr` was entered.
 ```{r}
-full_data <- full_data %>%
-  filter(!store_code_uc %in% remove_stores)
+multi_brand_descr <- full_frozen_dins %>%
+  distinct(upc, brand_descr) %>%
+  group_by(upc) %>%
+  summarize(n = n()) %>%
+  filter(n > 1) %>%
+  select(upc) %>%
+  pull()
 
-rm(parent_switchers, retailer_switchers, remove_stores, missing_stores)
+non_na_descr <- full_frozen_dins %>%
+  filter(upc %in% multi_brand_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc) %>%
+  filter(!is.na(brand_descr)) %>%
+  group_by(upc) %>%
+  summarize(n = n()) %>%
+  filter(n > 1) %>%
+  select(upc) %>%
+  pull()
+
+full_frozen_dins %>%
+  filter(upc %in% non_na_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc)
 ```
 
-Use `mutate` to replace missing `retailer_code` values with the `parent_code`.
+Check if there are private label products with `NA` brand description values, which we should change to `'CTL BR'` so that they are aggregated under the correct manufacturer. Change `NA` brand descriptions for private label products. 
 ```{r}
-full_data <- full_data %>%
-  mutate(retailer_code = ifelse(is.na(retailer_code), parent_code, retailer_code))
+full_frozen_dins %>%
+  filter(upc %in% multi_brand_descr) %>%
+  distinct(upc, brand_descr) %>%
+  arrange(upc)
+
+# there are no private label products in this category with NA brand descriptions 
+
+# priv_lab_na <- full_frozen_dins %>%
+#  filter(upc %in% multi_brand_descr) %>%
+#  distinct(upc, brand_descr) %>%
+#  filter(brand_descr == 'CTL BR') %>%
+#  select(upc) %>%
+#  pull()
+
+# full_frozen_dins <- full_frozen_dins %>%
+#  mutate(brand_descr = if_else(upc %in% priv_lab_na, 'CTL BR', brand_descr))
+
+rm(multi_brand_descr, non_na_descr)
+```
+
+When a upc has no sales in a given `week_end` it is not recorded in the data. We need to impute the weeks that a given
+upc had zero sales. First, create `full_weeks` which contains all values of `week_end`. Split `full_frozen_dins` into
+separate `tibbles`, one for each store and upc combination. Loop over the separated `tibbles` and if the number of
+observations for a given upc in a given store is less than the full number of weeks, do an anti-join with `full_weeks`
+to get the missing `week_end` values. Create a matrix `missing_data` which will contain the missing observations. Fill
+`missing_data` in with the variables that stay constant over time, then change `week_end` to be the missing `week_end` 
+values. Change `price` to `NA`, and fill in `units` and `sales` with zero. Use `bind_rows` to add `missing_data` back 
+to the original data. Recombine the separate `full_frozen_dins` data into one `tibble`.
+```{r}
+full_weeks <- full_frozen_dins %>%
+  distinct(week_end)
+
+full_frozen_dins <- full_frozen_dins %>%
+  group_split(store_code_uc, upc)
+
+for (i in 1:length(full_frozen_dins)) {
+  
+  if(nrow(full_frozen_dins[[i]]) < length(full_weeks$week_end)) {
+  
+  vars_vec <- full_frozen_dins[[i]][1,]
+  
+  missing_weeks <- full_weeks %>%
+      anti_join(full_frozen_dins[[i]], by = 'week_end') %>%
+      pull()
+
+  missing_data <- matrix(nrow = length(missing_weeks),
+                         ncol = length(vars_vec)
+                         )
+
+  missing_data <- map_df(1:length(missing_weeks), function(y) missing_data[y,] <- vars_vec)
+
+  missing_data['week_end'] <- missing_weeks
+  
+  missing_data['price'] <- NA
+
+  missing_data[c('units', 'sales')] <- 0
+    
+  full_frozen_dins[[i]] <- full_frozen_dins[[i]] %>%
+    bind_rows(missing_data)
+  
+  }}
+
+full_frozen_dins <- bind_rows(full_frozen_dins)
+```
+
+Check that all upc codes have observations for the full time period and that none have more observations than they 
+should.
+```{r}
+full_frozen_dins %>%
+  group_by(store_code_uc, upc) %>%
+  summarize(n_weeks = n()) %>%
+  filter(n_weeks < length(full_weeks$week_end) |
+         n_weeks > length(full_weeks$week_end))
+```
+
+Create numeric `week_end` variable `n_week_end`.
+```{r}
+full_frozen_dins <- full_frozen_dins %>%
+  mutate(n_week_end = as.numeric(week_end))
 ```
 
 Save the cleaned data and save files for each state. 
 ```{r}
-save(full_data, file="frozen_dinners_clean.RData")
+save(full_frozen_dins, file = 'frozen_dins_clean.RData')
 
-mn_data <- full_data %>% filter(fips_state_descr=="MN")
-il_data <- full_data %>% filter(fips_state_descr=="IL")
-mo_data <- full_data %>% filter(fips_state_descr=="MO")
-nd_data <- full_data %>% filter(fips_state_descr=="ND")
+mn_frozen_dins <- full_frozen_dins %>% filter(fips_state_descr == 'MN')
+il_frozen_dins <- full_frozen_dins %>% filter(fips_state_descr == 'IL')
+mo_frozen_dins <- full_frozen_dins %>% filter(fips_state_descr == 'MO')
+nd_frozen_dins <- full_frozen_dins %>% filter(fips_state_descr == 'ND')
 
-save(mn_data, file="mn_frozen_dinners_clean.RData")
-save(il_data, file="il_frozen_dinners_clean.RData")
-save(mo_data, file="mo_frozen_dinners_clean.RData")
-save(nd_data, file="nd_frozen_dinners_clean.RData")
+save(mn_frozen_dins, file="mn_frozen_dins_clean.RData")
+save(il_frozen_dins, file="il_frozen_dins_clean.RData")
+save(mo_frozen_dins, file="mo_frozen_dins_clean.RData")
+save(nd_frozen_dins, file="nd_frozen_dins_clean.RData")
 ```
 
 Captain: Nestle

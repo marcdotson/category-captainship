@@ -12,17 +12,29 @@ Install library.
 
 Load library.
 ```{r}
-library(plyr)
 library(tidyverse)
-library(lubridate)
-library(readxl)
-library(foreach)
 ```
 
-Untar (unzip) the `.tgz` file. Use loop to read in 2011 movement, stores, rms, and the products master file. 
+
+### Category Information
+***
+
+Target reset date: Jan 1st 2012
+
+Data years: 2011-2012
+
+Vendor Lead: General Mills
+
+Validator: Kellogg
+
+States of interest: North Dakota, Minnesota, Missouri, Illinois
+
+***
+
+Untar (unzip) the `.tgz` file for cereal. Read in 2011 movement, stores, rms, and the products master file.
 ```{r}
-#cereal_files <- untar('Cereal_RTE_20102012.tgz', list = TRUE)
-#untar('Cereal_RTE_20102012.tgz')
+cereal_files <- untar('Cereal_RTE_20102012.tgz', list = TRUE)
+untar('Cereal_RTE_20102012.tgz')
 move_11 <- read_tsv('nielsen_extracts/RMS/2011/Movement_Files/1005_2011/1344_2011.tsv')
 stores_11 <- read_tsv('nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv')
 rms_11 <- read_tsv('nielsen_extracts/RMS/2010/Annual_Files/rms_versions_2010.tsv')
@@ -62,7 +74,7 @@ Read in file containing the manufacturer upc prefixes. The captain and validator
 Kellogg's, respectively. Create separate vectors with the upc prefixes for both General Mills and Kellogg's called
 `gm_prefs` and `kel_prefs`.
 ```{r}
-prefixes <- read_xlsx('Manufacturer UPC Prefixes - From GS1 Company Database.xlsx')
+prefixes <- read_csv('../../Data/Manufacturer UPC Prefixes - From GS1 Company Database - Sheet1.csv')
 
 gm_prefs <- prefixes %>%
   filter(manufacturer == 'General Mills') %>%

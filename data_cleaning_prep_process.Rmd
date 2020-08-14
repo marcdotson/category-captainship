@@ -1,0 +1,26 @@
+---
+title: "Data Cleaning and Preparation Process"
+author: "Cameron Bale"
+date: "8/11/2020"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Overview
+
+This document outlines the process we use to clean and process the original scanner data so that it is ready for modelling.
+
+### Step One: Data Cleaning
+
+There is one cleaning file for each category. These files will have names with the following form: `XXXX_cleaning.Rmd`.
+
+\begin{itemize}
+  \item read in the data
+  \item join stores and movement files
+  \item filter for food store type and locations of interest
+  \item do this for all of the years
+  \item you can determine which years to use based on the `Category Captainship Scheduled` document.
+  \item 
