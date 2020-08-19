@@ -80,3 +80,21 @@ ILLINOIS (6)
 
 The supervalu website claims it has 182 stores in the Chicago market. Retail code 6 in the data has 161 stores associated with it. The next highest number of stores associated with any retailer code is 78. Additionally, all 161 retailer 6 stores are contained in the Chicago DMA description. This leads us to believe that retailer 6 is the Supervalu retailer located in Chicago.
 
+```{r}
+stores_11 <- read_tsv("../Data/Cereal/nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv") %>%
+  filter(channel_code == 'F' & fips_state_descr %in% c('ND', 'MN', 'MO', 'IL'))
+```
+
+```{r}
+stores_11 %>%
+  filter(retailer_code %in% c(903, 221))
+```
+
+
+
+
+
+
+
+
+
