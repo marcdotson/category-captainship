@@ -5,64 +5,292 @@ output: github_document
 
 Note: This document contains all the code used to merge and clean data for the cereal category. 
 
-Install library.
+Install packages.
 ```{r eval=FALSE, include=FALSE}
 #install.packages("tidyverse")
 ```
 
-Load library.
+Load packages.
 ```{r}
-library(plyr)
 library(tidyverse)
 library(lubridate)
-library(readxl)
-library(foreach)
 ```
 
-Untar (unzip) the `.tgz` file. Use loop to read in 2011 movement, stores, rms, and the products master file. 
+### Category Information
+***
+
+Target reset date: Jan 1st 2012
+
+Data years: 2011-2012
+
+Vendor Lead: General Mills
+
+Validator: Kellogg
+
+States of interest: North Dakota, Minnesota, Missouri, Illinois
+
+***
+
+Untar (unzip) the `.tgz` file for cereal. This only needs to be done once on a given computer.
 ```{r}
-#cereal_files <- untar('Cereal_RTE_20102012.tgz', list = TRUE)
-#untar('Cereal_RTE_20102012.tgz')
-move_11 <- read_tsv('nielsen_extracts/RMS/2011/Movement_Files/1005_2011/1344_2011.tsv')
-stores_11 <- read_tsv('nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv')
-rms_11 <- read_tsv('nielsen_extracts/RMS/2010/Annual_Files/rms_versions_2010.tsv')
-products <- read_tsv('nielsen_extracts/RMS/Master_Files/Latest/products.tsv', quote = '')
+# store file names from compressed data file
+(cereal_files <- untar("../../Data/Cereal/Cereal_RTE_20102012.tgz", list = TRUE))
+
+# unzip the data files ----- this only needs to be done once
+untar(tarfile = "../../Data/Cereal/Cereal_RTE_20102012.tgz", exdir = "../../Data/Cereal")
 ```
 
-Create `full_11` by joining the 2011 stores file to the movement file on `store_code_uc`. Then filter for `F` (food)
-and `ND` (North Dakota) `MN` (Minnesota) `MO` (Missouri) and `IL` (Illinois). Join the 2011 rms file to the movement
-file on `upc`, then join the products file to the movement file on `upc` and `upc_ver_uc`. This ensures that no
-entries in the movement file are duplicated.
+Read in the `stores` file for 2011 and 2012, filter for channel code `F` (food) and for the four states we are interested in. Combine into one file.
 ```{r}
-full_11 <- move_11 %>%
-  left_join(stores_11, by = 'store_code_uc') %>% 
-  filter(channel_code == 'F' & fips_state_descr %in% c('ND', 'MN', 'MO', 'IL')) %>%
-  left_join(rms_11, by = 'upc') %>%
+# read in 2011 stores file
+stores_11 <- read_tsv("../../Data/Cereal/nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv") %>%
+  filter(channel_code == 'F' & fips_state_descr %in% c('ND', 'MN', 'MO', 'IL'))
+
+# read in 2012 stores file
+stores_12 <- read_tsv("../../Data/Cereal/nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv") %>%
+  filter(channel_code == 'F' & fips_state_descr %in% c('ND', 'MN', 'MO', 'IL'))
+
+# combine both years
+stores <- stores_11 %>%
+  bind_rows(stores_12)
+
+# remove individual files
+rm(stores_11, stores_12)
+```
+
+Some missing `retailer_code` values, as expected.
+```{r}
+# report missing values
+stores %>%
+  summarise_all(~sum(is.na(.)))
+```
+
+Create `parent_switchers` vector containing the store codes that switch parent codes.
+```{r}
+parent_switchers <- stores %>%
+  distinct(store_code_uc, parent_code) %>%
+  group_by(store_code_uc) %>%
+  filter(n() > 1) %>%
+  pull(store_code_uc)
+```
+
+Remove the stores that switch parent codes.
+```{r}
+stores <- stores %>%
+  filter(!store_code_uc %in% unique(parent_switchers))
+```
+
+Replace missing `retailer_code` values with `parent_code`. Create a vector of all stores codes.
+```{r}
+# most stores have retailer code equal to parent code (94.26%)
+stores %>%
+  mutate(equal_codes = if_else(parent_code == retailer_code, 1, 0)) %>%
+  filter(equal_codes == 1) %>%
+  summarize(percent_equal = n()/nrow(stores))
+
+# replace missing retailer_code values
+stores <- stores %>%
+  mutate(retailer_code = if_else(is.na(retailer_code), parent_code, retailer_code))
+
+# vector of unique store codes
+s <- unique(stores$store_code_uc)
+```
+
+Read in movement files for both years and combine.
+```{r}
+move_11 <- read_tsv("../../Data/Cereal/nielsen_extracts/RMS/2011/Movement_Files/1005_2011/1344_2011.tsv") %>%
+  filter(store_code_uc %in% s)
+
+move_12 <- read_tsv("../../Data/Cereal/nielsen_extracts/RMS/2012/Movement_Files/1005_2012/1344_2012.tsv") %>%
+  filter(store_code_uc %in% s)
+
+move <- move_11 %>%
+  bind_rows(move_12)
+
+rm(move_11, move_12)
+```
+
+Look at missing values for movement file.
+```{r}
+# missing values
+move %>%
+  summarise_all(~sum(is.na(.)))
+```
+
+Convert `week_end` to a date variable and create a `year` variable from `week_end`.
+```{r}
+move <- move %>%
+  mutate(week_end = ymd(week_end),
+         year = year(week_end))
+```
+
+Create `missing_stores` vector which contains the store codes that don't show up in all years in the data. Remove these stores from the data.
+```{r}
+# number of years -- we know this should be 2
+n_years <- length(unique(move$year))
+
+missing_stores <- move %>%
+  distinct(store_code_uc, year) %>% # get distinct store and year combinations
+  group_by(store_code_uc) %>% # group combinations by the store code
+  filter(n() < n_years) %>% # filter for store codes with less combinations than the number of years
+  pull(store_code_uc) # pull store codes to put in vector
+
+move <- move %>%
+  filter(!store_code_uc %in% missing_stores)
+```
+
+Check for 'almost duplicate' movement records. (shouldn't be any since we removed stores that switch parent codes.)
+```{r}
+move %>%
+  group_by(store_code_uc, upc, week_end) %>%
+  filter(n() > 1)
+```
+
+Create `all_combs` which consists of all feasible `store_code_uc`, `upc`, and `week_end` combination. Check that this creates the correct number of weeks in `all_combs` for each `store_code_uc` and `upc` combination.
+```{r}
+all_combs <- move %>%
+  expand(nesting(store_code_uc, upc), week_end) # nesting() is used to only select the store and upc combos that exist in the data
+
+n_weeks <- length(unique(move$week_end)) # calculate the number of unique week_end values
+
+# check that all store and upc combos have the correct number of weeks
+all_combs %>%
+  group_by(store_code_uc, upc) %>%
+  filter(n() != n_weeks)
+```
+
+Combine movement data with `all_combs`. Now, we have an observation for each upc in each store in each week.
+```{r}
+move <- move %>%
+  right_join(all_combs, by = c('store_code_uc', 'upc', 'week_end')) # combine data
+
+move <- move %>%
+  mutate(year = year(week_end)) # re-create year variable from week_end
+```
+
+Check missing values, and impute for `units`, `prmult`, and `price`. We for sure want `units = 0`. `prmult = 1` is just a standard value, and won't affect our calculation of sales. `price = avg(price)` is a placeholder as well. We would probably want to do a smarter imputation if we based any analysis on price. Potential here for using the synthetic control to impute price, similar to the model presented at StanCon.
+```{r}
+move %>%
+  summarise_all(~sum(is.na(.))) # check missing values
+
+move <- move %>%
+  replace_na(replace = list(units = 0, prmult = 1, price = mean(move$price, na.rm = TRUE))) # impute missing values as necessary, the imputation for prmult and price is just a placeholder, it doesn't affect calculations of sales
+```
+
+Double check that every store and upc combination has the correct number of weeks.
+```{r}
+move %>%
+  group_by(store_code_uc, upc) %>% # make sure every upc in every store has the correct number of weeks
+  filter(n() != n_weeks)
+
+move %>%
+  summarise_all(~sum(is.na(.))) # check missing values
+
+rm(all_combs, missing_stores, n_years, s)
+```
+
+Read in rms files and combine.
+```{r}
+# rms versions files for 2011 and 2012
+rms_11 <- read_tsv("../../Data/Cereal/nielsen_extracts/RMS/2011/Annual_Files/rms_versions_2011.tsv")
+rms_12 <- read_tsv("../../Data/Cereal/nielsen_extracts/RMS/2012/Annual_Files/rms_versions_2012.tsv")
+
+rms <- rms_11 %>% # combine files
+  bind_rows(rms_12)
+```
+
+Join rms versions to movement file. Look at missing values.
+```{r}
+move <- move %>%
+  left_join(rms, by = c('upc', 'year' = 'panel_year')) # merge data
+
+move %>%
+  summarize_all(~sum(is.na(.))) # check missing values
+```
+
+There is only ever one version of a upc in a given year.
+```{r}
+# report the maximum number of upc versions for any upc in 2011
+rms_11 %>%
+  distinct(upc, upc_ver_uc) %>%
+  group_by(upc) %>%
+  summarize(n = n(), .groups = 'drop') %>%
+  summarize(n = max(n))
+```
+
+```{r}
+# report the maximum number of upc versions for any upc in 2012
+rms_12 %>%
+  distinct(upc, upc_ver_uc) %>%
+  group_by(upc) %>%
+  summarize(n = n(), .groups = 'drop') %>%
+  summarize(n = max(n))
+```
+
+Verifying that the maximum number of upc versions in the movement file is two (either two versions from the rms file, or one from the rms file and a missing value). (Just check manually in RStudio).
+```{r}
+# get vector of upcs with multiple versions
+mult_vers <- move %>%
+  distinct(upc, upc_ver_uc) %>%
+  group_by(upc) %>%
+  filter(n() > 1) %>%
+  pull(upc)
+
+# return the upcs that have multiple versions, can look through manually
+move %>%
+  filter(upc %in% mult_vers) %>%
+  distinct(upc, upc_ver_uc) %>%
+  arrange(upc)
+```
+
+So upcs with missing values for `upc_ver_uc` after merging with the full movement file only have one version in one year. For upcs with missing `upc_ver_uc`, fill it in with the known version.
+```{r}
+# fill missing upc versions
+move <- move %>%
+  group_by(upc) %>%
+  fill(upc_ver_uc, .direction = 'updown') %>%
+  ungroup()
+
+# check missing values
+move %>%
+  summarize_all(~sum(is.na(.)))
+```
+
+Now we can merge the rest of the data (stores files and products file).
+
+Merge the stores file, and check missing values.
+```{r}
+full_cereal <- move %>% # merge stores file
+  left_join(stores, by = c('store_code_uc', 'year'))
+
+full_cereal %>% # missing values
+  summarize_all(~sum(is.na(.)))
+```
+
+Merge the products file, and check missing values.
+```{r}
+# read in products file
+products <- read_tsv("../../Data/Cereal/nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote = '')
+
+# merge products file with the rest of the data
+full_cereal <- full_cereal %>%
   left_join(products, by = c('upc', 'upc_ver_uc'))
 
-rm(move_11, rms_11, stores_11)
-```
+# missing values
+full_cereal %>%
+  summarize_all(~sum(is.na(.)))
 
-Read in files for 2012 the same way as for 2011, and create `full_12` the same way as `full_11`.
-```{r}
-move_12 <- read_tsv('nielsen_extracts/RMS/2012/Movement_Files/1005_2012/1344_2012.tsv')
-stores_12 <- read_tsv('nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv')
-rms_12 <- read_tsv('nielsen_extracts/RMS/2012/Annual_Files/rms_versions_2012.tsv')
+# save the full data for easy access later if needed
+save(full_cereal, file = "../../Data/Cereal/full_cereal.RData")
 
-full_12 <- move_12 %>%
-  left_join(stores_12, by = 'store_code_uc') %>% 
-  filter(channel_code == 'F' & fips_state_descr %in% c('ND', 'MN', 'MO', 'IL')) %>%
-  left_join(rms_12, by = 'upc') %>%
-  left_join(products, by = c('upc', 'upc_ver_uc'))
-
-rm(move_12, stores_12, rms_12, products)
+rm(move, products, rms, rms11, rms12, stores, missing_stores, mult_vers, n_years, s)
 ```
 
 Read in file containing the manufacturer upc prefixes. The captain and validator for cereal are General Mills and
 Kellogg's, respectively. Create separate vectors with the upc prefixes for both General Mills and Kellogg's called
 `gm_prefs` and `kel_prefs`.
 ```{r}
-prefixes <- read_xlsx('Manufacturer UPC Prefixes - From GS1 Company Database.xlsx')
+prefixes <- read_csv('../../Data/Manufacturer UPC Prefixes - From GS1 Company Database - Sheet1.csv')
 
 gm_prefs <- prefixes %>%
   filter(manufacturer == 'General Mills') %>%
@@ -75,195 +303,50 @@ kel_prefs <- prefixes %>%
   pull()
 ```
 
-Create `full_cereal` by combining the data for 2011 and 2012. Convert `week_end` to be a date variable and create a
-numeric version called `n_week_end` which is needed for microsynth. Create `sales` by multiplying `units` and `price`.
-Create `manufacturer` by assinging the correct manufacturer based on upc prefixes. We assign General Mills, Kellogg's,
-Private Label, and upcs belonging to any other manufacturers fall under 'other'.
+Find all upcs with multiple brand descriptions. If any of these upcs are private label, i.e., `CTL BR`, we want to make sure all of the brand descriptions for those upcs read `CTR BR`. (There aren't always private label products with missing brand descriptions, this code does nothing for some categories.)
 ```{r}
-full_cereal <- full_11 %>%
-  bind_rows(full_12) %>%
-  mutate(week_end = ymd(week_end),
-         sales = units * price,
-         manufacturer = if_else(grepl(paste(gm_prefs, collapse = '|'), upc), 'General Mills',
-                        if_else(grepl(paste(kel_prefs, collapse = '|'), upc), "Kellogg's",
-                        if_else(brand_descr == 'CTL BR', 'Private Label', 'Other', missing = 'Other'))))
-
-rm(full_11, full_12, prefixes)
-```
-
-Create `missing_stores` vector which contains the store codes that don't show up in all years in the data. First,
-get each distinct combination of `store_code_uc` and `panel_year`, then summarize by counting the number of years
-for each store, filter for the `store_code_uc` that have less than two years, and store those codes in the vector
-`missing_stores`.
-```{r}
-missing_stores <- full_cereal %>%
-  distinct(store_code_uc, panel_year) %>%
-  group_by(store_code_uc) %>%
-  summarize(n_years = n()) %>%
-  filter(n_years < length(unique(year(full_cereal$week_end)))) %>%
-  select(store_code_uc) %>%
-  pull()
-```
-
-Create a vector that contains the `store_code_uc` codes that are assigned to multiple retailer codes. First, generate
-unique conbinations of `store_code_uc` and `retailer_code`, then group by `store_code_uc` and count the number of
-observations - this is the number of `retailer_code` values for the given `store_code_uc`. Then, filter for the 
-`store_code_uc` that have more than one retailer code and pull them into a vector.
-```{r}
-retailer_switchers <- full_cereal %>%
-  distinct(store_code_uc, retailer_code) %>%
-  group_by(store_code_uc) %>%
-  summarize(n_rets = n()) %>%
-  filter(n_rets > 1) %>%
-  select(store_code_uc) %>%
-  pull()
-```
-
-Using a similar approach as the previous chunk explains, create a tbl that contains the `store_code_uc` that have
-multiple `parent_code` values.
-```{r}
-parent_switchers <- full_cereal %>%
-  distinct(store_code_uc, parent_code) %>%
-  group_by(store_code_uc) %>%
-  summarize(n_parent = n()) %>%
-  filter(n_parent > 1) %>%
-  select(store_code_uc) %>%
-  pull()
-```
-
-Filter for the store codes that do not switch retailer or parent codes and are not missing from one of the years.
-Replace missing `retailer_code` values with the `parent_code`.
-```{r}
-full_cereal <- full_cereal %>%
-  filter(!store_code_uc %in% unique(c(parent_switchers, retailer_switchers, missing_stores))) %>%
-  mutate(retailer_code = if_else(is.na(retailer_code), parent_code, retailer_code))
-
-rm(parent_switchers, retailer_switchers, missing_stores)
-```
-
-Create `multi_brand_descr` which contains the upc codes that have multiple brand descriptions. We assume that upc codes
-with one valid brand description and an `NA` value as the other description actually have the same description and are
-the same product. Create `non_na_descr` which contains the upc codes that have multiple brand descriptions that don't
-include an `NA` value. Filter `full_cereal` for the upc codes that have multiple valid brand descriptions and compare
-them to see if the upc code was used for different products belonging to different manufacturers. All the upc codes in
-this category that had multiple brand descriptions were the same product, they just had a slight change in how the
-`brand_descr` was entered.
-```{r}
-multi_brand_descr <- full_cereal %>%
-  distinct(upc, brand_descr) %>%
-  group_by(upc) %>%
-  summarize(n = n()) %>%
-  filter(n > 1) %>%
-  select(upc) %>%
-  pull()
-
-non_na_descr <- full_cereal %>%
-  filter(upc %in% multi_brand_descr) %>%
-  distinct(upc, brand_descr) %>%
-  arrange(upc) %>%
-  filter(!is.na(brand_descr)) %>%
-  group_by(upc) %>%
-  summarize(n = n()) %>%
-  filter(n > 1) %>%
-  select(upc) %>%
-  pull()
-
-full_cereal %>%
-  filter(upc %in% non_na_descr) %>%
-  distinct(upc, brand_descr) %>%
-  arrange(upc)
-```
-
-Check if there are private label products with `NA` brand description values, which we should change to `'CTL BR'` so that they are aggregated under the correct manufacturer. Change `NA` brand descriptions for private label products. 
-```{r}
-full_cereal %>%
-  filter(upc %in% multi_brand_descr) %>%
-  distinct(upc, brand_descr) %>%
-  arrange(upc)
-
+# store private label upcs with multiple descriptions in a vector
 priv_lab_na <- full_cereal %>%
-  filter(upc %in% multi_brand_descr) %>%
   distinct(upc, brand_descr) %>%
-  filter(brand_descr == 'CTL BR') %>%
-  select(upc) %>%
-  pull()
+  group_by(upc) %>%
+  filter(n() > 1 & brand_descr == 'CTL BR') %>%
+  pull(upc)
 
+# change brand descriptions for private label upcs to `CTL BR`
 full_cereal <- full_cereal %>%
   mutate(brand_descr = if_else(upc %in% priv_lab_na, 'CTL BR', brand_descr))
 ```
 
-When a upc has no sales in a given `week_end` it is not recorded in the data. We need to impute the weeks that a given
-upc had zero sales. First, create `full_weeks` which contains all values of `week_end`. Split `full_cereal` into
-separate `tibbles`, one for each store and upc combination. Loop over the separated `tibbles` and if the number of
-observations for a given upc in a given store is less than the full number of weeks, do an anti-join with `full_weeks`
-to get the missing `week_end` values. Create a matrix `missing_data` which will contain the missing observations. Fill
-`missing_data` in with the variables that stay constant over time, then change `week_end` to be the missing `week_end` 
-values. Change `price` to `NA`, and fill in `units` and `sales` with zero. Use `bind_rows` to add `missing_data` back 
-to the original data. Recombine the separate `full_cereal` data into one `tibble`.
+Create new variables. `manufacturer` will be used to track the upcs that belong to the captain, validator, and private label.
 ```{r}
-full_weeks <- full_cereal %>%
-  distinct(week_end)
-
-full_cereal <- full_cereal %>%
-  group_split(store_code_uc, upc)
-
-for (i in 1:length(full_cereal)) {
-  
-  if(nrow(full_cereal[[i]]) < length(full_weeks$week_end)) {
-  
-  vars_vec <- full_cereal[[i]][1,]
-  
-  missing_weeks <- full_weeks %>%
-      anti_join(full_cereal[[i]], by = 'week_end') %>%
-      pull()
-
-  missing_data <- matrix(nrow = length(missing_weeks),
-                         ncol = length(vars_vec)
-                         )
-
-  missing_data <- map_df(1:length(missing_weeks), function(y) missing_data[y,] <- vars_vec)
-
-  missing_data['week_end'] <- missing_weeks
-  
-  missing_data['price'] <- NA
-
-  missing_data[c('units', 'sales')] <- 0
-    
-  full_cereal[[i]] <- full_cereal[[i]] %>%
-    bind_rows(missing_data)
-  
-  }}
-
-full_cereal <- bind_rows(full_cereal)
+full_cereal <- full_cereal %>% # combine 2011 and 2012 data
+  mutate(price = if_else(price == 0.01, 0, price), # products with price = 0.01 were actually free
+         unit_price = price/prmult, # create variable for price per unit
+         sales = unit_price * units, # calculate total weekly sales per upc
+         tot_unit_vol = units * size1_amount * multi, # calculate total volume in `size1_amount` units
+         manufacturer = if_else(grepl(paste(gm_prefs, collapse = '|'), upc), 'GM', # search for GM prefixes, assign GM
+                        if_else(grepl(paste(kel_prefs, collapse = '|'), upc), 'K', # search for K prefixes, assign K
+                        if_else(brand_descr == 'CTL BR', 'PL', 'Other', missing = 'Other')))) # assign private label, everything else is `other`
 ```
 
-Check that all upc codes have observations for the full time period and that none have more observations than they 
-should.
+Check one more time that every store x upc combination has the correct number of observations.
 ```{r}
 full_cereal %>%
-  group_by(store_code_uc, upc) %>%
-  summarize(n_weeks = n()) %>%
-  filter(n_weeks < length(full_weeks$week_end) |
-         n_weeks > length(full_weeks$week_end))
-```
-
-Create numeric `week_end` variable `n_week_end`.
-```{r}
-full_cereal <- full_cereal %>%
-  mutate(n_week_end = as.numeric(week_end))
+  group_by(store_code_uc, upc) %>% # make sure every upc in every store has the correct number of weeks
+  filter(n() != n_weeks)
 ```
 
 Save the cleaned data and save files for each state. 
 ```{r}
-save(full_cereal, file = 'cereal_clean.RData')
+save(full_cereal, file = '../../Data/Cereal/cereal_clean.RData')
 
 mn_cereal <- full_cereal %>% filter(fips_state_descr == 'MN')
 il_cereal <- full_cereal %>% filter(fips_state_descr == 'IL')
 mo_cereal <- full_cereal %>% filter(fips_state_descr == 'MO')
 nd_cereal <- full_cereal %>% filter(fips_state_descr == 'ND')
 
-save(mn_cereal, file="mn_cereal_clean.RData")
-save(il_cereal, file="il_cereal_clean.RData")
-save(mo_cereal, file="mo_cereal_clean.RData")
-save(nd_cereal, file="nd_cereal_clean.RData")
+save(mn_cereal, file="../../Data/Cereal/Minnesota/mn_cereal_clean.RData")
+save(il_cereal, file="../../Data/Cereal/Illinois/il_cereal_clean.RData")
+save(mo_cereal, file="../../Data/Cereal/Missouri/mo_cereal_clean.RData")
+save(nd_cereal, file="../../Data/Cereal/North Dakota/nd_cereal_clean.RData")
 ```
