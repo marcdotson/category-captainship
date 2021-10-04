@@ -1,7 +1,7 @@
 //
 // This model comes from Gupta's web index B.1
 // Morgan Bale
-//
+// October 2021
 
 // Data
 data{
