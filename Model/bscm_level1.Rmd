@@ -1,0 +1,175 @@
+---
+title: "Bayesian Synthetic Control Level 1"
+author: "Morgan Bale"
+date: "10/4/2021"
+output: github_document
+---
+
+The purpose of this file to use synthetic data to test the bayesian synthetic control model with data at the store, brand, and time level. The model comes from the web index of the Gupta paper, part B.1 BSCM-Horseshoe. This file begins to customize the model to our paper, e.g. changing index and variable names. 
+
+```{r, include=FALSE}
+library(tidyverse)
+library(rstan)
+library(bayesplot)
+library(gtools)
+library(rstan)
+
+rstan_options(auto_write=TRUE) # writes a compiled Stan program to the disk to avoid recompiling
+options(mc.cores = parallel::detectCores()-1) # uses multiple cores for stan
+```
+
+##### DATA #######
+
+Function for making synthetic data: incorporate brand and store level data across multiple time periods. Assume brands are nested within stores? 
+```{r}
+gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
+                        N_test=20,      #num of obs in post treatment 
+                        S=4,            #num of control stores
+                        beta_0=1.5,     #intercept
+                        sigma2=0.05,    #error term variance 
+                        tau=0.01        #global shrinkage 
+                        ) {
+
+  X_train <- matrix(rnorm(N_train*S), nrow=N_train, ncol=S)          #control unit matrix in pre treatment
+  X_test <- matrix(rnorm(N_test*S), nrow=N_test, ncol=S)            #control unit matrix in post treatment 
+  lambda_unif <- runif(S, min=0, max=pi/2)         #hyper parameter prior 
+  lambda <- tau * tan(lambda_unif)                     #local shrinkage 
+  
+  beta_raw <- rep(1/S, S)                             #control unit weights before transformation 
+  beta <- rnorm(S)                                    #control unit weights
+  for(s in 1:S) {
+    beta[s] = lambda[s] * beta_raw[s]
+  }
+  
+  #model 
+  sigma=sqrt(sigma2)
+  X_beta <- beta_0 + X_train*beta 
+  
+  y_train = rnorm(N_train, mean=X_beta, sd=sigma)
+  
+  #make a list for stan
+  list(N_train=N_train, N_test=N_test, S=S, beta_0=beta_0, sigma2=sigma2, tau=tau, X_train=X_train, X_test=X_test, lambda=lambda, 
+       beta_raw=beta_raw, beta=beta, sigma=sigma, X_beta=X_beta, y_train=y_train)
+}
+```
+
+Create synthetic data
+```{r}
+set.seed(2020)
+b1_data <- gen_b1_data()
+#str(b1_data)
+```
+
+###### MODEL ########
+
+Run model using `bcsm_b1.stan`
+```{r}
+b1_model <- stan_model(file="bscm_level1.stan")
+#print(b1_model)
+```
+
+```{r}
+draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
+```
+
+###### RESULTS ######
+
+Check results
+```{r}
+#traceplots
+traceplot(draws, pars="tau")
+traceplot(draws, pars="beta")
+traceplot(draws, pars="sigma")
+traceplot(draws, pars="lambda")
+```
+
+```{r}
+mcmc_recover_hist(As.mcmc.list(draws, pars="beta"), true=as.vector(t(b1_data$beta)))
+mcmc_recover_hist(As.mcmc.list(draws, pars="lambda"), true=as.vector(t(b1_data$lambda)))
+mcmc_recover_hist(As.mcmc.list(draws, pars="sigma"), true=as.vector(t(b1_data$sigma)))
+```
+
+Fitted Synthetic Control for pre treatment
+```{r}
+#synthetic control for pre treatment
+y_fit <- summary(draws, pars="y_fit")
+
+sc_pre <- tibble(y_fit[[1]][,1])
+
+lower <- y_fit[[1]][,4]
+upper <- y_fit[[1]][,8]
+
+sc_pre <- sc_pre %>% bind_cols(lower, upper)
+
+sc_pre <- sc_pre %>% mutate(week=rep(1:b1_data$N_train))
+
+names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
+
+sc_pre %>% ggplot(aes(x=week, y=synthetic_control))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line() + ggtitle("Synthetic Control in the Pre Treatment") + labs(x="Week", y="Control Observations") 
+```
+
+Treated unit in the pre treatment
+```{r}
+y_train <- b1_data$y_train
+
+sc_data <- sc_pre %>% bind_cols(y_train)
+
+names(sc_data)[5] <- "treatment_group"
+
+sc_data %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") + 
+  labs(x="Week", y="Pre Treatment Value") + ggtitle("Pre Treatment Synthetic Control (blue) vs Treatment Group (red)") 
+```
+
+Predicted Synthetic Control for post treatment
+```{r}
+y_test <- summary(draws, pars="y_test")
+
+sc_post <- tibble(y_test[[1]][,1])
+
+lower <- y_test[[1]][,4]
+upper <- y_test[[1]][,8]
+
+sc_post <- sc_post %>% bind_cols(lower, upper)
+
+sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
+
+names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
+
+sc_post %>% ggplot(aes(x=week, y=synthetic_control)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line() + ggtitle("Synthetic Control in the Post Treatment") + labs(x="Week", y="Control Value")
+#gray is 95% CI 
+```
+
+Make treatment data for post period
+```{r}
+y_post <- y_train + .8
+y_post <- y_post[1:b1_data$N_test]
+
+y_post <- as_tibble(y_post) %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
+
+sc_post <- sc_post %>% left_join(y_post, by="week")
+
+names(sc_post)[5] <- "treatment_group"
+
+total_sc_data <- sc_data %>% bind_rows(sc_post)
+
+total_sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") +
+  labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train) 
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
