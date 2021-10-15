@@ -25,38 +25,64 @@ Function for making synthetic data: incorporate brand and store level data acros
 gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
                         N_test=20,      #num of obs in post treatment 
                         S=4,            #num of control stores
+                        B=3,            #num of brands within each store
                         beta_0=1.5,     #intercept
                         sigma2=0.05,    #error term variance 
                         tau=0.01        #global shrinkage 
                         ) {
 
-  X_train <- matrix(rnorm(N_train*S), nrow=N_train, ncol=S)          #control unit matrix in pre treatment
-  X_test <- matrix(rnorm(N_test*S), nrow=N_test, ncol=S)            #control unit matrix in post treatment 
-  lambda_unif <- runif(S, min=0, max=pi/2)         #hyper parameter prior 
+  #C=S*B         #num store brand combinations 
+  #b <- rep(1:B, times=S)    #brand for each X column
+  #s <- rep(1:S, each=B)     #store for each X column 
+  #X_train <- matrix(rnorm(N_train*C), nrow=N_train, ncol=C)          #control unit matrix in pre treatment
+  X_train <- array(rnorm(N_train*S*B), dim=c(B, N_train, S))         #control unit matrix pre treatment 
+  #X_test <- matrix(rnorm(N_test*C), nrow=N_test, ncol=C)            #control unit matrix in post treatment 
+  X_test <- array(rnorm(N_test*S*B), dim=c(B, N_test, S))         #control unit matrix post treatment 
+  #lambda_unif <- runif(C, min=0, max=pi/2)         #hyper parameter prior 
+  lambda_unif <- matrix(runif(S*B, min=0, max=pi/2), nrow=S, ncol=B)
   lambda <- tau * tan(lambda_unif)                     #local shrinkage 
   
-  beta_raw <- rep(1/S, S)                             #control unit weights before transformation 
-  beta <- rnorm(S)                                    #control unit weights
+  #beta_raw <- rep(1/C, C)                             #control unit weights before transformation 
+  #beta <- rnorm(C)                                    #control unit weights
+  #for(c in 1:C) {
+    #beta[c] = lambda[c] * beta_raw[c]
+  #}
+  
+  beta_raw <- matrix(1/S, nrow=S, ncol=B)
+  beta <- matrix(NA, nrow=S, ncol=B)
   for(s in 1:S) {
-    beta[s] = lambda[s] * beta_raw[s]
+    for(b in 1:B) {
+      beta[s, b] <- lambda[s,b] * beta_raw[s,b]
+    }
   }
   
   #model 
   sigma=sqrt(sigma2)
-  X_beta <- beta_0 + X_train*beta 
+  #X_beta <- beta_0 + X_train*beta 
   
-  y_train = rnorm(N_train, mean=X_beta, sd=sigma)
+  X_beta <- array(NA, dim=c(N_train, B))
+  
+  for(b in 1:B) {
+    X_beta[,b] <- beta_0 + X_train[b,,] %*% beta[,b]
+  }
+  
+  y_train = matrix(rnorm(N_train, mean=X_beta, sd=sigma), nrow=N_train, ncol=B) 
+  
+  y_train <- matrix(NA, nrow=N_train, ncol=B)
+  for(b in 1:B) {
+    y_train[,b] <- rnorm(N_train, mean=X_beta[,b], sd=sigma)
+  }
   
   #make a list for stan
-  list(N_train=N_train, N_test=N_test, S=S, beta_0=beta_0, sigma2=sigma2, tau=tau, X_train=X_train, X_test=X_test, lambda=lambda, 
-       beta_raw=beta_raw, beta=beta, sigma=sigma, X_beta=X_beta, y_train=y_train)
+  list(N_train=N_train, N_test=N_test, S=S, B=B, C=C, beta_0=beta_0, sigma2=sigma2, tau=tau, X_train=X_train, X_test=X_test, lambda=lambda, lambda_unif=lambda_unif,
+       beta_raw=beta_raw, beta=beta, sigma=sigma, X_beta=X_beta, y_train=y_train, b=b, s=s)
 }
 ```
 
 Create synthetic data
 ```{r}
 set.seed(2020)
-b1_data <- gen_b1_data()
+b1_data <- gen_b1_data(tau=3)
 #str(b1_data)
 ```
 
@@ -104,8 +130,6 @@ sc_pre <- sc_pre %>% bind_cols(lower, upper)
 sc_pre <- sc_pre %>% mutate(week=rep(1:b1_data$N_train))
 
 names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
-
-sc_pre %>% ggplot(aes(x=week, y=synthetic_control))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line() + ggtitle("Synthetic Control in the Pre Treatment") + labs(x="Week", y="Control Observations") 
 ```
 
 Treated unit in the pre treatment
@@ -134,9 +158,6 @@ sc_post <- sc_post %>% bind_cols(lower, upper)
 sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
 
 names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
-
-sc_post %>% ggplot(aes(x=week, y=synthetic_control)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line() + ggtitle("Synthetic Control in the Post Treatment") + labs(x="Week", y="Control Value")
-#gray is 95% CI 
 ```
 
 Make treatment data for post period
