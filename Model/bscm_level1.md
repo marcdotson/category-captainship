@@ -1,28 +1,21 @@
----
-title: "Bayesian Synthetic Control Level 1"
-author: "Morgan Bale"
-date: "10/4/2021"
-output: github_document
----
+Bayesian Synthetic Control Level 1
+================
+Morgan Bale
+10/4/2021
 
-The purpose of this file to use synthetic data to test the bayesian synthetic control model with data at the store, brand, and time level. The model comes from the web index of the Gupta paper, part B.1 BSCM-Horseshoe. This file begins to customize the model to our paper, e.g. changing index and variable names. 
+The purpose of this file to use synthetic data to test the bayesian
+synthetic control model with data at the store, brand, and time level.
+The model comes from the web index of the Gupta paper, part B.1
+BSCM-Horseshoe. This file begins to customize the model to our paper,
+e.g. changing index and variable names.
 
-```{r, include=FALSE}
-library(tidyverse)
-library(rstan)
-library(bayesplot)
-library(gtools)
-library(rstan)
-library(reshape2)
+##### DATA
 
-rstan_options(auto_write=TRUE) # writes a compiled Stan program to the disk to avoid recompiling
-options(mc.cores = parallel::detectCores()-1) # uses multiple cores for stan
-```
+Function for making synthetic data: incorporate brand and store level
+data across multiple time periods. Assume brands are nested within
+stores?
 
-##### DATA #######
-
-Function for making synthetic data: incorporate brand and store level data across multiple time periods. Assume brands are nested within stores? 
-```{r}
+``` r
 gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
                         N_test=40,      #num of obs in post treatment 
                         S=2,            #num of control stores
@@ -69,41 +62,68 @@ gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
 ```
 
 Create synthetic data
-```{r}
+
+``` r
 set.seed(2020)
 b1_data <- gen_b1_data()
 #str(b1_data)
 ```
 
-###### MODEL ########
+###### MODEL
 
 Run model using `bcsm_b1.stan`
-```{r}
+
+``` r
 b1_model <- stan_model(file="bscm_level1.stan")
 #print(b1_model)
 ```
 
-```{r}
+``` r
 draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
 ```
 
-###### RESULTS ######
+###### RESULTS
 
 Check results
-```{r}
+
+``` r
 #traceplots
 traceplot(draws, pars="beta_0")
+```
+
+![](bscm_level1_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
+
+``` r
 traceplot(draws, pars="beta") #(S,B)
+```
+
+![](bscm_level1_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
+
+``` r
 traceplot(draws, pars="sigma")
 ```
 
-```{r}
+![](bscm_level1_files/figure-gfm/unnamed-chunk-6-3.png)<!-- -->
+
+``` r
 mcmc_recover_hist(As.mcmc.list(draws, pars="beta"), true=as.vector(t(b1_data$beta)))
+```
+
+    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+
+![](bscm_level1_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+
+``` r
 mcmc_recover_hist(As.mcmc.list(draws, pars="beta_0"), true=as.vector(t(b1_data$beta_0)))
 ```
 
+    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+
+![](bscm_level1_files/figure-gfm/unnamed-chunk-7-2.png)<!-- -->
+
 Fitted Synthetic Control for pre treatment
-```{r}
+
+``` r
 #synthetic control for pre treatment
 y_fit <- summary(draws, pars="y_fit")  #(N_train, B)
 
@@ -113,14 +133,21 @@ lower <- y_fit[[1]][,4]
 upper <- y_fit[[1]][,8]
 
 sc_pre <- sc_pre %>% bind_cols(lower, upper)
+```
 
+    ## New names:
+    ## * NA -> ...2
+    ## * NA -> ...3
+
+``` r
 sc_pre <- sc_pre %>% mutate(week=rep(1:b1_data$N_train, each=b1_data$B), brand=rep(1:b1_data$B, times=b1_data$N_train))
 
 names(sc_pre) <- c("synthetic_control","lower", "upper", "week", "brand")
 ```
 
 Treated unit in the pre treatment
-```{r}
+
+``` r
 y_train <- b1_data$y_train
 
 y_train <-y_train %>% melt(id.vars=c("V1", "V2", "V3"), value.name="treated")
@@ -133,8 +160,11 @@ sc_data %>% ggplot(aes(x=week)) + geom_line(aes(y=treated, color=as.factor(brand
   labs(x="Week", y="Pre Treatment Value", color="Brand") + ggtitle("Pre Treatment Synthetic Control (dashed) vs Treatment Group (solid)") 
 ```
 
+![](bscm_level1_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
+
 Predicted Synthetic Control for post treatment
-```{r}
+
+``` r
 y_test <- summary(draws, pars="y_test") #(N_test, B)
 
 sc_post <- tibble(y_test[[1]][,1])
@@ -143,14 +173,21 @@ lower <- y_test[[1]][,4]
 upper <- y_test[[1]][,8]
 
 sc_post <- sc_post %>% bind_cols(lower, upper)
+```
 
+    ## New names:
+    ## * NA -> ...2
+    ## * NA -> ...3
+
+``` r
 sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test), each=b1_data$B), brand=rep(1:b1_data$B, times=b1_data$N_test))
 
 names(sc_post) <- c("synthetic_control", "lower", "upper", "week", "brand")
 ```
 
 Make treatment data for post period
-```{r}
+
+``` r
 y_post <- y_train %>% mutate(treated=treated+10, week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test), times=b1_data$B))
 
 sc_post <- sc_post %>% left_join(y_post, by=c("week", "brand"))
@@ -161,36 +198,31 @@ total_sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper),
   labs(x="Week", y="Value", color="Brand") + ggtitle("Synthetic Control (dashed) vs Treatment Group (solid)") + geom_vline(xintercept=b1_data$N_train) + scale_color_manual(values=c("navyblue", "darkred", "steelblue"))
 ```
 
+![](bscm_level1_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+
 Plot by brand to be able to see post period better:
 
 BRAND 1
-```{r}
+
+``` r
 total_sc_data %>% filter(brand==1) %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treated), color="navyblue") + geom_line(aes(y=synthetic_control),color="navyblue", linetype="dashed") +
   labs(x="Week", y="Value") + ggtitle("Synthetic Control (dashed) vs Treatment Group (solid): Brand 1") + geom_vline(xintercept=b1_data$N_train)
 ```
-BRAND 2
-```{r}
+
+![](bscm_level1_files/figure-gfm/unnamed-chunk-12-1.png)<!-- --> BRAND 2
+
+``` r
 total_sc_data %>% filter(brand==2) %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treated), color="darkred") + geom_line(aes(y=synthetic_control),color="darkred", linetype="dashed") +
   labs(x="Week", y="Value") + ggtitle("Synthetic Control (dashed) vs Treatment Group (solid): Brand 2") + geom_vline(xintercept=b1_data$N_train)
 ```
 
+![](bscm_level1_files/figure-gfm/unnamed-chunk-13-1.png)<!-- -->
+
 BRAND 3
-```{r}
+
+``` r
 total_sc_data %>% filter(brand==3) %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treated), color="steelblue") + geom_line(aes(y=synthetic_control),color="steelblue", linetype="dashed") +
   labs(x="Week", y="Value") + ggtitle("Synthetic Control (dashed) vs Treatment Group (solid): Brand 3") + geom_vline(xintercept=b1_data$N_train)
 ```
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+![](bscm_level1_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->

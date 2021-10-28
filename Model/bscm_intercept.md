@@ -68,7 +68,7 @@ Run model using `bcsm_b1_intercept.stan`
 b1_model <- stan_model(file="bscm_b1_intercept.stan")
 ```
 
-    ## recompiling to avoid crashing R session
+    ## hash mismatch so recompiling; make sure Stan code ends with a blank line
 
     ## Trying to compile a simple C file
 

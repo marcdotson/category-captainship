@@ -146,7 +146,7 @@ names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
 #gray is 95% CI 
 ```
 
-Make treatment data for post period
+Make treatment data for post period: this code only works if number of post treatment periods=number pre treatment periods
 ```{r}
 y_post <- y_train + 30
 y_post <- y_post[1:b1_data$N_test]

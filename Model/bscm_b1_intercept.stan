@@ -15,22 +15,21 @@ data{
 
 // The parameters accepted by the model. 
 parameters{
-  //real beta_0; //Intercept
   real<lower=0> sigma2; //Error term variance
   //vector[p] beta_raw; //Control unit weights (will be transformed)
   vector[p] beta; 
   //Hyperparameters prior
-  vector<lower=0, upper=pi()/2>[p] lambda_unif;
-  real<lower=0> tau; //Global shrinkage
+  //vector<lower=0, upper=pi()/2>[p] lambda_unif;
+  //real<lower=0> tau; //Global shrinkage
   real beta_0; //intercept 
 }
 
 transformed parameters{
   //vector[p] beta; //Control unit weights
   real<lower=0> sigma; //Error term sd
-  vector<lower=0>[p] lambda; //Local shrinkage
+  //vector<lower=0>[p] lambda; //Local shrinkage
   vector[N_train] X_beta; //Synthetic control unit prediction in the pre-treatment period
-  lambda = tau * tan(lambda_unif); // => lambda ~ cauchy(0, tau)
+  //lambda = tau * tan(lambda_unif); // => lambda ~ cauchy(0, tau)
   //for(j in 1:p){
   //beta[j] = lambda[j] * beta_raw[j];
     //}
@@ -44,9 +43,9 @@ model{
   //Pre-treatment estimation
   //beta_raw ~ normal(0, 1); //=> beta ~ normal(0, lambda^2)
   beta ~ normal(0, 1);
-  tau ~ cauchy(0, sigma);
+  //tau ~ cauchy(0, sigma);
   sigma ~ cauchy(0,10);
-  //beta_0 ~ cauchy(0,10);
+  beta_0 ~ cauchy(0,10);
   y_train ~ normal(X_beta, sigma);
 }
 
