@@ -39,6 +39,9 @@ model{
   sigma ~ cauchy(0,10);
   beta_0 ~ cauchy(0,10);
   for(b in 1:B) {
+    beta[,b] ~ normal(0, 1); 
+  }
+  for(b in 1:B) {
     y_train[,b] ~ normal(X_beta[,b], sigma); 
   }
 }

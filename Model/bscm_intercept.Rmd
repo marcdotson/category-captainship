@@ -73,7 +73,7 @@ b1_data <- gen_b1_data()
 Run model using `bcsm_b1_intercept.stan`
 ```{r}
 b1_model <- stan_model(file="bscm_b1_intercept.stan")
-#print(b1_model)
+print(b1_model)
 ```
 
 ```{r}

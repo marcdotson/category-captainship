@@ -80,7 +80,7 @@ b1_data <- gen_b1_data()
 Run model using `bcsm_b1.stan`
 ```{r}
 b1_model <- stan_model(file="bscm_level1.stan")
-#print(b1_model)
+print(b1_model)
 ```
 
 ```{r}
