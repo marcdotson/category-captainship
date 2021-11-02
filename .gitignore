@@ -1,13 +1,15 @@
-# Folders
-Output/*
-Readings/*
-Temporary/*
-
-# R Stuff
+# R
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
 
-# Miscellaneous
+# Apple
 .DS_Store
+
+# Folders
+Output/*
+Private/*
+
+# Files
+*.pdf

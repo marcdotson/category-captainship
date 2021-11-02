@@ -13,50 +13,43 @@ captain and not as detrimental to the other brands as might be expected.
 But does this phenomenon generalize across many retailers? What
 characteristics attenuate the success of the practice across retailers?
 
-For general details on GitHub usage, project organization, and project
-workflow, see [Research Assistant
-Training](https://github.com/marcdotson/ra-training).
-
-## Project Organization
+## Project Details
 
 ### Project Description
 
-  - general effects of category captainship
-  - reference old paper: On the Competitive and Collaborative
+-   general effects of category captainship
+-   reference old paper: On the Competitive and Collaborative
     Implications of Category Captainship
-  - extend and apply across multiple chains, markets, locations and
+-   extend and apply across multiple chains, markets, locations and
     categories to get better understanding of overall effects
-  - Models:
-      * Hierarchical Difference in Differences
-      * Synthetic Control
-      * Synthetic Difference in Differences
+-   Use hierarchical diff in diff model
 
 ### Data
 
-  - Nielsen data, retail scanner data (RMS), from the Kilts Center
+-   Nielsen data, retail scanner data (RMS), from the Kilts Center
     archive
-  - weekly pricing, volume, store merchandising conditions
-  - 35,000 grocery, drug, mass-merchandiser, and other stores (grocery
+-   weekly pricing, volume, store merchandising conditions
+-   35,000 grocery, drug, mass-merchandiser, and other stores (grocery
     for us)
-  - stores are from approximately 90 retail chains
-  - food stores, data represents 53% of all commodity volume (ACV)
-  - 2011 to 2013
-  - North Dakota, Washington DC, Minnesota, Missouri
-  - Not every Nielsen retail cooperator has agreed to share their
+-   stores are from approximately 90 retail chains
+-   food stores, data represents 53% of all commodity volume (ACV)
+-   2011 to 2013
+-   North Dakota, Washington DC, Minnesota, Missouri
+-   Not every Nielsen retail cooperator has agreed to share their
     scanner data with the Kilts Center, but for retailers that do
     participate, typically all stores within the 48 contiguous states
     are included
-  - 3 major file types:
-      - stores: individual store locations  
-      - products: UPC info  
-      - movement: price and quantity of goods sold at specific stores on
+-   3 major file types:
+    -   stores: individual store locations  
+    -   products: UPC info  
+    -   movement: price and quantity of goods sold at specific stores on
         a specific week
-  - since movement files are so large, there is one file for each
+-   since movement files are so large, there is one file for each
     product module code (category?) for each year
 
 ### Working with the Data
 
-  - Data Merging/Cleaning: For each category and each year, store and
+-   Data Merging/Cleaning: For each category and each year, store and
     movement files were merged based on store code and filtered for
     observations in the four areas where Supervalu Operates: North
     Dakota, Washington DC, Minnesota, and Missouri. Then this file was
@@ -68,7 +61,7 @@ Training](https://github.com/marcdotson/ra-training).
 
 ### Discovering Supervalu
 
-  - Graph method: There is a variable that identifies the brand for each
+-   Graph method: There is a variable that identifies the brand for each
     product in our data, and we use the brand variable to tie category
     captains and validators to all of their products. We then filter for
     these products and create a new variable corresponding to each
@@ -82,22 +75,22 @@ Training](https://github.com/marcdotson/ra-training).
     average price level for captains and store brands. These graphs were
     created for the following categories for every retailer in the four
     Supervalu locations:
-    
-      - Ready-to-Eat Cereal
-      - Spreads and Jams
-      - Pickles and Olives
-      - Peanut Butter
-      - Novelties
-      - Lunchmeat
-      - Ice Cream
-      - Frozen Dinners
-      - Canned Soup
+
+    -   Ready-to-Eat Cereal
+    -   Spreads and Jams
+    -   Pickles and Olives
+    -   Peanut Butter
+    -   Novelties
+    -   Lunchmeat
+    -   Ice Cream
+    -   Frozen Dinners
+    -   Canned Soup
 
 The graph method did not clearly indicate which retailer codes
 correspond to the Supervalu chains we are interested in, so we tried
 another method of identification.
 
-  - Table method: To discover Supervalue, we created scaled sales charts
+-   Table method: To discover Supervalue, we created scaled sales charts
     for the top 100 upcs (in terms of sales) within each retailer in
     each category. These charts are at the weekly level such that each
     row represents a upc and each cell across the rows is that week’s
@@ -119,9 +112,19 @@ another method of identification.
 
 ### Modeling
 
-  - We began by comparing the treated store (the treated retailer only has 1 store present in DC in our data) to the other stores in DC.
-    There weren't any suitable control units since the trends of the treated store and control stores did not match.
-  - We moved on to begin working with the 'Synth' package in R, which can be utilized to construct a synthetic control unit that matches
-    the pre-treatment trend of the treated unit. This method was established by Abadie et al and has gained popularity in the marketing
-    literature and variations on their method have been established......
-  - We will also investigate sythetic difference in differences....
+-   Currently in progress
+
+## Project Organization
+
+-   `/Code` Scripts with prefixes (e.g., `01_import-data.R`,
+    `02_clean-data.R`) and functions in `/Source`.
+-   `/Data` Simulated and real data, the latter not pushed.
+-   `/Figures` PNG images and plots.
+-   `/Output` Output from model runs, not pushed.
+-   `/Presentation` Presentation slides, without its knitted PDF pushed.
+-   `/Private` A catch-all folder for miscellaneous files, not pushed.
+-   `/Writing` Case studies and the paper, without its knitted PDF
+    pushed.
+
+For general details on collaborating using GitHub see [Research
+Assistant Training](https://github.com/marcdotson/ra-training).
