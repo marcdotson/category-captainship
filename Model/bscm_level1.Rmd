@@ -5,7 +5,7 @@ date: "10/4/2021"
 output: github_document
 ---
 
-The purpose of this file to use synthetic data to test the bayesian synthetic control model with data at the store, brand, and time level. The model comes from the web index of the Gupta paper, part B.1 BSCM-Horseshoe. This file begins to customize the model to our paper, e.g. changing index and variable names. 
+The purpose of this file to use synthetic data to test the bayesian synthetic control model with data at the store, brand, and time level. The model comes from the web index of the Gupta paper, part B.1 BSCM-Horseshoe. This file begins to customize the model to our paper, e.g. changing index and variable names and is built off of the file `bscm_intercept` 
 
 ```{r, include=FALSE}
 library(tidyverse)
@@ -31,12 +31,9 @@ gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
                         mu=c(15, 35, 10)  #means for X matrices (brands?)
                         ) {
 
-  #C=S*B         #num store brand combinations 
-  #b <- rep(1:B, times=S)    #brand for each X column
-  #s <- rep(1:S, each=B)     #store for each X column 
-  #X_train <- matrix(rnorm(N_train*C), nrow=N_train, ncol=C)          #control unit matrix in pre treatment
+
   X_train <- array(NA, dim=c(B, N_train, S))         #control unit matrix pre treatment 
-  #X_test <- matrix(rnorm(N_test*C), nrow=N_test, ncol=C)            #control unit matrix in post treatment 
+
   X_test <- array(NA, dim=c(B, N_test, S))         #control unit matrix post treatment 
   
   for(b in 1:B) {
@@ -44,11 +41,13 @@ gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
     X_test[b,,] <- matrix(rnorm(N_test*S, mean=mu[b], sd=10), nrow=N_test, ncol=S)
   }
   
-  beta <- matrix(c(-.5, 2, 0, -.5, 2, 0), nrow=S, ncol=B)
+  #try drawing betas based on lambda, tau, sigma
+  #sigma <- abs(rcauchy(1, location=0, scale=10))
+  #tau <- abs(rcauchy(1, location=0, scale=sigma)) 
+  #lambda <- matrix(abs(rcauchy(S*B, location=0, scale=tau)), nrow=S, ncol=B)
+  #beta <- matrix(rnorm(S*B, mean=0, sd=lambda), nrow=S, ncol=B)
   
-  #model 
-  #sigma=sqrt(sigma2)
-  #X_beta <- beta_0 + X_train*beta 
+  beta <- matrix(c(-.5, 2, 0, -.5, 2, 0), nrow=S, ncol=B)
   
   X_beta <- array(NA, dim=c(N_train, B))
   
@@ -95,6 +94,8 @@ Check results
 traceplot(draws, pars="beta_0")
 traceplot(draws, pars="beta") #(S,B)
 traceplot(draws, pars="sigma")
+traceplot(draws, pars="lambda") #(S,B)
+traceplot(draws, pars="tau")
 ```
 
 ```{r}

@@ -7,7 +7,8 @@ The purpose of this file to use synthetic data to test the bayesian
 synthetic control model with data at the store, brand, and time level.
 The model comes from the web index of the Gupta paper, part B.1
 BSCM-Horseshoe. This file begins to customize the model to our paper,
-e.g. changing index and variable names.
+e.g. changing index and variable names and is built off of the file
+`bscm_intercept`
 
 ##### DATA
 
@@ -24,12 +25,9 @@ gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
                         mu=c(15, 35, 10)  #means for X matrices (brands?)
                         ) {
 
-  #C=S*B         #num store brand combinations 
-  #b <- rep(1:B, times=S)    #brand for each X column
-  #s <- rep(1:S, each=B)     #store for each X column 
-  #X_train <- matrix(rnorm(N_train*C), nrow=N_train, ncol=C)          #control unit matrix in pre treatment
+
   X_train <- array(NA, dim=c(B, N_train, S))         #control unit matrix pre treatment 
-  #X_test <- matrix(rnorm(N_test*C), nrow=N_test, ncol=C)            #control unit matrix in post treatment 
+
   X_test <- array(NA, dim=c(B, N_test, S))         #control unit matrix post treatment 
   
   for(b in 1:B) {
@@ -37,11 +35,13 @@ gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
     X_test[b,,] <- matrix(rnorm(N_test*S, mean=mu[b], sd=10), nrow=N_test, ncol=S)
   }
   
-  beta <- matrix(c(-.5, 2, 0, -.5, 2, 0), nrow=S, ncol=B)
+  #try drawing betas based on lambda, tau, sigma
+  #sigma <- abs(rcauchy(1, location=0, scale=10))
+  #tau <- abs(rcauchy(1, location=0, scale=sigma)) 
+  #lambda <- matrix(abs(rcauchy(S*B, location=0, scale=tau)), nrow=S, ncol=B)
+  #beta <- matrix(rnorm(S*B, mean=0, sd=lambda), nrow=S, ncol=B)
   
-  #model 
-  #sigma=sqrt(sigma2)
-  #X_beta <- beta_0 + X_train*beta 
+  beta <- matrix(c(-.5, 2, 0, -.5, 2, 0), nrow=S, ncol=B)
   
   X_beta <- array(NA, dim=c(N_train, B))
   
@@ -75,11 +75,6 @@ Run model using `bcsm_b1.stan`
 
 ``` r
 b1_model <- stan_model(file="bscm_level1.stan")
-```
-
-    ## hash mismatch so recompiling; make sure Stan code ends with a blank line
-
-``` r
 print(b1_model)
 ```
 
@@ -105,13 +100,17 @@ print(b1_model)
     ##   real beta_0; //Intercept
     ##   real<lower=0> sigma2; //Error term variance
     ##   matrix[S, B] beta; //Control unit weights, move to transformed parameters if using beta_raw
+    ##   real<lower=0> tau; //global shrinkage 
+    ##   matrix<lower=0>[S, B] lambda; //local shrinkage 
     ## 
     ## }
     ## 
     ## transformed parameters{
     ##   real<lower=0> sigma; //Error term sd
+    ##   matrix<lower=0>[B, B] lambda2; 
     ##   matrix[N_train,B] X_beta; //Synthetic control unit prediction in the pre-treatment period
     ##   sigma = sqrt(sigma2);
+    ##   lambda2 = lambda' * lambda; 
     ##   
     ##   for(b in 1:B) {
     ##     //for(s in 1:S) {
@@ -122,11 +121,14 @@ print(b1_model)
     ## // The model to be estimated. 
     ## model{
     ##   //Pre-treatment estimation
+    ##   tau ~ cauchy(0, sigma); 
     ##   sigma ~ cauchy(0,10);
     ##   beta_0 ~ cauchy(0,10);
     ##   for(b in 1:B) {
-    ##     beta[,b] ~ normal(0, 1); 
+    ##     lambda[,b] ~ cauchy(0, tau); 
+    ##     beta[,b] ~ normal(0, lambda2[b,b]); 
     ##   }
+    ##   
     ##   for(b in 1:B) {
     ##     y_train[,b] ~ normal(X_beta[,b], sigma); 
     ##   }
@@ -179,6 +181,18 @@ traceplot(draws, pars="sigma")
 ```
 
 ![](bscm_level1_files/figure-gfm/unnamed-chunk-6-3.png)<!-- -->
+
+``` r
+traceplot(draws, pars="lambda") #(S,B)
+```
+
+![](bscm_level1_files/figure-gfm/unnamed-chunk-6-4.png)<!-- -->
+
+``` r
+traceplot(draws, pars="tau")
+```
+
+![](bscm_level1_files/figure-gfm/unnamed-chunk-6-5.png)<!-- -->
 
 ``` r
 mcmc_recover_hist(As.mcmc.list(draws, pars="beta"), true=as.vector(t(b1_data$beta)))
