@@ -7,7 +7,7 @@ output: github_document
 
 The purpose of this file to use synthetic data to test a bayesian synthetic control model that we might use. The model comes from the web index of the Gupta paper, part B.1 BSCM-Horseshoe. 
 
-```{r, include=FALSE}
+```{r opts, echo=FALSE}
 library(tidyverse)
 library(rstan)
 library(bayesplot)
@@ -16,12 +16,16 @@ library(rstan)
 
 rstan_options(auto_write=TRUE) # writes a compiled Stan program to the disk to avoid recompiling
 options(mc.cores = parallel::detectCores()-1) # uses multiple cores for stan
+
+knitr::opts_chunk$set(
+  fig.path = "../Figures/bscm/"
+)
 ```
 
 ##### DATA #######
 
 Function for making synthetic data
-```{r}
+```{r bscm_test}
 gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
                         N_test=40,      #num of obs in post treatment 
                         p=5,            #num of control units
@@ -61,7 +65,7 @@ gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
 ```
 
 Create synthetic data
-```{r}
+```{r bscm_test}
 set.seed(2020)
 b1_data <- gen_b1_data()
 #str(b1_data)
@@ -70,12 +74,12 @@ b1_data <- gen_b1_data()
 ###### MODEL ########
 
 Run model using `bcsm_b1.stan`
-```{r}
+```{r bscm_test}
 b1_model <- stan_model(file="bscm_b1.stan")
 #print(b1_model)
 ```
 
-```{r}
+```{r bscm_test}
 draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
 
 #try adapt delta
@@ -86,18 +90,18 @@ draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
 ###### RESULTS ######
 
 Check results
-```{r}
+```{r bscm_test}
 #traceplots
 traceplot(draws, pars="beta")
 traceplot(draws, pars="sigma")
 ```
 
-```{r}
+```{r bscm_test}
 mcmc_recover_hist(As.mcmc.list(draws, pars="beta"), true=as.vector(t(b1_data$beta)))
 ```
 
 Fitted Synthetic Control for pre treatment
-```{r}
+```{r bscm_test}
 #synthetic control for pre treatment
 y_fit <- summary(draws, pars="y_fit")
 
@@ -116,7 +120,7 @@ names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
 ```
 
 Treated unit in the pre treatment
-```{r}
+```{r bscm_test}
 y_train <- b1_data$y_train
 
 sc_data <- sc_pre %>% bind_cols(y_train)
@@ -128,7 +132,7 @@ sc_data %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="
 ```
 
 Predicted Synthetic Control for post treatment
-```{r}
+```{r bscm_test}
 y_test <- summary(draws, pars="y_test")
 
 sc_post <- tibble(y_test[[1]][,1])
@@ -147,7 +151,7 @@ names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
 ```
 
 Make treatment data for post period
-```{r}
+```{r bscm_test}
 y_post <- y_train + 15
 y_post <- y_post[1:b1_data$N_test]
 

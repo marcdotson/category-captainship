@@ -1,19 +1,31 @@
-Bayesian Synthetic Control with intercept
-================
-Morgan Bale
-10/28/2021
+---
+title: "Bayesian Synthetic Control with intercept"
+author: "Morgan Bale"
+date: "10/28/2021"
+output: github_document
+---
 
-The purpose of this file is to add an intercept and horseshoe priors to
-the Bayesian synthetic control method tested in `testing_bscm`. The
-model comes from the web index of the Gupta et al, part B.1
-BSCM-Horseshoe.
+The purpose of this file is to add an intercept and horseshoe priors to the Bayesian synthetic control method tested in `testing_bscm`. The model comes from the web index of the Gupta et al, part B.1 BSCM-Horseshoe. 
 
-##### DATA
+```{r opts, echo=FALSE}
+library(tidyverse)
+library(rstan)
+library(bayesplot)
+library(gtools)
+library(rstan)
 
-Function for making synthetic data: values picked from simulation
-studies done in Gupta et al
+rstan_options(auto_write=TRUE) # writes a compiled Stan program to the disk to avoid recompiling
+options(mc.cores = parallel::detectCores()-1) # uses multiple cores for stan
 
-``` r
+knitr::opts_chunk$set(
+  fig.path = "../Figures/bscm/"
+)
+```
+
+##### DATA #######
+
+Function for making synthetic data: values picked from simulation studies done in Gupta et al 
+```{r bscm_intercept}
 gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
                         N_test=40,      #num of obs in post treatment 
                         p=5,            #num of control units
@@ -54,86 +66,42 @@ gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
 ```
 
 Create synthetic data
-
-``` r
+```{r bscm_intercept}
 set.seed(2020)
 b1_data <- gen_b1_data()
 #str(b1_data)
 ```
 
-###### MODEL
+###### MODEL ########
 
 Run model using `bcsm_b1_intercept.stan`
-
-``` r
+```{r bscm_intercept}
 b1_model <- stan_model(file="bscm_b1_intercept.stan")
 #print(b1_model)
 ```
 
-``` r
+```{r bscm_intercept}
 draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
 ```
 
-    ## Warning: There were 734 divergent transitions after warmup. See
-    ## http://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
-    ## to find out why this is a problem and how to eliminate them.
 
-    ## Warning: Examine the pairs() plot to diagnose sampling problems
-
-    ## Warning: The largest R-hat is 1.08, indicating chains have not mixed.
-    ## Running the chains for more iterations may help. See
-    ## http://mc-stan.org/misc/warnings.html#r-hat
-
-    ## Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
-    ## Running the chains for more iterations may help. See
-    ## http://mc-stan.org/misc/warnings.html#bulk-ess
-
-    ## Warning: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.
-    ## Running the chains for more iterations may help. See
-    ## http://mc-stan.org/misc/warnings.html#tail-ess
-
-###### RESULTS
+###### RESULTS ######
 
 Check results
-
-``` r
+```{r bscm_intercept}
 #traceplots
 traceplot(draws, pars="beta")
-```
-
-![](bscm_intercept_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
-
-``` r
 traceplot(draws, pars="beta_0")
-```
-
-![](bscm_intercept_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
-
-``` r
 traceplot(draws, pars="sigma")
 ```
 
-![](bscm_intercept_files/figure-gfm/unnamed-chunk-6-3.png)<!-- -->
-
-``` r
+```{r bscm_intercept}
 mcmc_recover_hist(As.mcmc.list(draws, pars="beta"), true=as.vector(t(b1_data$beta)))
-```
-
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-
-![](bscm_intercept_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
-
-``` r
 mcmc_recover_hist(As.mcmc.list(draws, pars="beta_0"), true=as.vector(t(b1_data$beta_0)))
 ```
 
-    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
-
-![](bscm_intercept_files/figure-gfm/unnamed-chunk-7-2.png)<!-- -->
-
 Fitted Synthetic Control for pre treatment
-
-``` r
+```{r bscm_intercept}
 #synthetic control for pre treatment
 y_fit <- summary(draws, pars="y_fit")
 
@@ -143,13 +111,7 @@ lower <- y_fit[[1]][,4]
 upper <- y_fit[[1]][,8]
 
 sc_pre <- sc_pre %>% bind_cols(lower, upper)
-```
 
-    ## New names:
-    ## * NA -> ...2
-    ## * NA -> ...3
-
-``` r
 sc_pre <- sc_pre %>% mutate(week=rep(1:b1_data$N_train))
 
 names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
@@ -158,28 +120,19 @@ names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
 ```
 
 Treated unit in the pre treatment
-
-``` r
+```{r bscm_intercept}
 y_train <- b1_data$y_train
 
 sc_data <- sc_pre %>% bind_cols(y_train)
-```
 
-    ## New names:
-    ## * NA -> ...5
-
-``` r
 names(sc_data)[5] <- "treatment_group"
 
 sc_data %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") + 
   labs(x="Week", y="Pre Treatment Value") + ggtitle("Pre Treatment Synthetic Control (blue) vs Treatment Group (red)") 
 ```
 
-![](bscm_intercept_files/figure-gfm/unnamed-chunk-9-1.png)<!-- -->
-
 Predicted Synthetic Control for post treatment
-
-``` r
+```{r bscm_intercept}
 y_test <- summary(draws, pars="y_test")
 
 sc_post <- tibble(y_test[[1]][,1])
@@ -188,13 +141,7 @@ lower <- y_test[[1]][,4]
 upper <- y_test[[1]][,8]
 
 sc_post <- sc_post %>% bind_cols(lower, upper)
-```
 
-    ## New names:
-    ## * NA -> ...2
-    ## * NA -> ...3
-
-``` r
 sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
 
 names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
@@ -203,10 +150,8 @@ names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
 #gray is 95% CI 
 ```
 
-Make treatment data for post period: this code only works if number of
-post treatment periods=number pre treatment periods
-
-``` r
+Make treatment data for post period: this code only works if number of post treatment periods=number pre treatment periods
+```{r bscm_intercept}
 y_post <- y_train + 30
 y_post <- y_post[1:b1_data$N_test]
 
@@ -222,4 +167,3 @@ total_sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper),
   labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train) 
 ```
 
-![](bscm_intercept_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
