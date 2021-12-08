@@ -29,14 +29,16 @@ transformed parameters{
   //vector[p] beta; //Control unit weights
   real<lower=0> sigma; //Error term sd
   vector<lower=0>[p] lambda2; 
+  //vector<lower=0>[p] lambda; //Local shrinkage
   vector[N_train] X_beta; //Synthetic control unit prediction in the pre-treatment period
   //lambda = tau * tan(lambda_unif); // => lambda ~ cauchy(0, tau)
   //for(j in 1:p){
   //beta[j] = lambda[j] * beta_raw[j];
     //}
   sigma = sqrt(sigma2);
+  //X_beta = beta_0 + X_train*beta;
   X_beta = beta_0 + X_train*beta;
-  lambda2 = lambda .* lambda;
+  //lambda2 = lambda .* lambda; //Duplicate from the merge conflict?
 }
 
 // The model to be estimated. 
@@ -46,6 +48,8 @@ model{
   beta ~ normal(0, lambda2);
   lambda ~ cauchy(0, tau); 
   tau ~ cauchy(0, sigma);
+  //beta ~ normal(0, 1);
+  //tau ~ cauchy(0, sigma);
   sigma ~ cauchy(0,10);
   beta_0 ~ cauchy(0,10);
   y_train ~ normal(X_beta, sigma);
@@ -63,6 +67,9 @@ generated quantities{
   for(i in 1:N_test){
   y_test[i] = normal_rng(beta_0 + X_test[i,] * beta, sigma);
     }
+  //for(i in 1:N_test){
+  //y_test[i] = normal_rng(beta_0 + X_test[i,] * beta, sigma);
+    //}
   for (t in 1:N_train) {
   log_lik[t] = normal_lpdf(y_train[t] | y_fit[t], sigma);
     }

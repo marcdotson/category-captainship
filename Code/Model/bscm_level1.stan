@@ -21,7 +21,6 @@ parameters{
   matrix[S, B] beta; //Control unit weights, move to transformed parameters if using beta_raw
   real<lower=0> tau; //global shrinkage 
   matrix<lower=0>[S, B] lambda; //local shrinkage 
-
 }
 
 transformed parameters{
@@ -47,7 +46,6 @@ model{
     lambda[,b] ~ cauchy(0, tau); 
     beta[,b] ~ normal(0, lambda2[b,b]); 
   }
-  
   for(b in 1:B) {
     y_train[,b] ~ normal(X_beta[,b], sigma); 
   }

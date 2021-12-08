@@ -1,0 +1,120 @@
+% Document class and packages.
+\documentclass[12pt,titlepage]{mktg-article}
+\usepackage{amsmath,float,graphicx,enumerate,setspace,natbib,color,booktabs,tikz,hyperref}
+\usetikzlibrary{fit,positioning}
+
+% Allows page breaks mid-equation, if needed.
+\allowdisplaybreaks[1]
+
+% Explicit definition
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+% New command for the "argmax" operator.
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+% Author-year style for natbib.
+\bibpunct[, ]{(}{)}{,}{a}{}{,}%
+\def\bibfont{\small}%
+\def\bibsep{\smallskipamount}%
+\def\bibhang{24pt}%
+\def\newblock{\ }%
+\def\BIBand{and}%
+
+\begin{document}
+
+% Title page.
+\title{Do You Even Rmd, Bruh? A Paper Template}
+\author{
+    Author 1\\
+  University of Whatever\\
+  \href{mailto:author1@example.edu}{\nolinkurl{author1@example.edu}}\\
+   \\   Author 2\\
+  University of Whatever\\
+  \href{mailto:author2@example.edu}{\nolinkurl{author2@example.edu}}\\
+  }
+\date{November 26, 2020}
+
+\maketitle
+\doublespacing
+
+% Abstract and keywords.
+\begin{center}
+{\singlespacing {\Large \noindent Do You Even Rmd, Bruh? A Paper Template}}\\
+\end{center}
+\vspace{4mm}
+\textbf{Abstract}\\
+Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+\\ \\
+\noindent \textbf{Keywords}\\ 
+Keyword 1, Keyword 2
+
+% Body of the paper.
+\newpage
+\hypertarget{introduction}{%
+\section{Introduction}\label{introduction}}
+
+We can can include regular single-paper citations using \texttt{{[}@author:year{]}} like \citep{Allenby:1998} or multiple-paper citations using \texttt{{[}@author:year;\ @author:year{]}} like \citep{Allenby:1998, Watanabe:2010}, in-line citations using \texttt{@author:year} like \citet{Allenby:1998}, or citations without the Author using \texttt{{[}-@author:year{]}} like \citeyearpar{Allenby:1998}.
+
+Each section and sub-section can be referenced using an automatically generated label using \texttt{\textbackslash{}@ref(section-name)}. For example, we can reference the Model Specification section using \texttt{\textbackslash{}@ref(model-specification)} as Section \ref{model-specification}.
+
+\hypertarget{finding-the-treated-retailer}{%
+\section{Finding the Treated Retailer}\label{finding-the-treated-retailer}}
+
+\hypertarget{north-dakota}{%
+\subsection{North Dakota}\label{north-dakota}}
+
+Supervalu owns a chain called Hornbacher's that has stores in both Moorhead MN and Fargo ND. Hornbacher's had 6 stores in 2012. We found the unique dma descriptions in the Minnesota data and filtered for ``Minneapolis-St Paul MN'' and ``Fargo-Valley City ND'' dma descriptions since Cub foods is located in Minneapolis/St.~Paul and Hornbacher's is located in Fargo/Moorhead. We were hoping to find an overlap between the two locations, but the Minneapolis/St.Paul location is so large that it includes all the retailer codes in the data. Next, we looked at the number of stores that have a ``Fargo-Valley City ND'' dma description but are located in MN. There are two retailers with stores in MN that have Fargo dma descriptions. Both retailers have one store in the MN data. Then we found the retailer codes with a ``Fargo-Valley City ND'' dma description in the North Dakota data. There are two overlapping retailer codes between North Dakota and Minnesota, one of them is likely to be Hornbacher's.
+
+One of the retailers has 1 store in MN and 5 stores in ND that both have dma description of Fargo-Valley City ND. Hornbacher's had 5 stores in ND in 2012 (Northport, Village West, Express, Southgate, and Osgood) and 1 store in MN in 2012 (Moorhead-101 11th st). Given this information the selected retailer is Hornbacher's and is our treated retailer. We used the wayback machine to find Hornbacher's and Supervalu's sites in 2012, which reports the number of stores and their locations.
+
+\hypertarget{minnesota}{%
+\subsection{Minnesota}\label{minnesota}}
+
+Supervalu's retailer in Minnesota is Cub Foods, focused mainly in the Minneapolis market. To find the treated retailer in Minnesota, we checked the number of stores in each MN retailer and location of those stores in order to match with the wayback machine locations online. We used unique county and zipcode descriptions to see how many stores are in each location in attempt to match with Cub Foods. The wayback machine does not have archived all the stores locations in 2012, so we had to use the Cub Food stores current locations. The locations are likely similar. When we compare the current location to the retailer options in our data, it is clear who the treated retailer is. Five out of nine zipcodes are an exact match between our picked retailer and Cub Foods (558, 559, 560, 562, 565). Zipcode 550 has 11 stores in Cub Foods and 10 stores in our selected retailer. The last three zipcodes (551, 553, 554) are close but missing a few stores in the actual data compared to the stores online. The total number of stores under our selected retailer is 43. According to the supervalu website, there were 46 total stores in 2012. This retailer has the number of stores that is closest to matching 46.
+
+\hypertarget{missouri}{%
+\subsection{Missouri}\label{missouri}}
+
+The way back machine does not show the Missouri locations for Shop'n'Save. All MO Shop'n'Save stores are closing or being sold. I found a website that listed 6 stores in zip 631 and 5 stores in 630 that are closing (\url{https://www.kmov.com/news/these-shop-n-save-stores-are-on-closure-list-if/article_d4f853da-bb86-11e8-a565-635fd47aaf94.html}). There is only one retailer with stores in zipcodes that start with 631 and 630. All St.~Louis zipcodes start with 631, and as the Supervalu website said their key Shop'n'Save market was in St.~Louis, this is also evidence for the selected retailer. We can also check the dma descriptions for the retailers in Missouri. There are only two retailers with dma descriptions in St.~Louis. This combined with the other retailer tests previously done, leads us to believe the selected retailer is most likely Supervalu.
+
+\hypertarget{illinois}{%
+\subsection{Illinois}\label{illinois}}
+
+The supervalu website claims it has 182 stores in the Chicago market. One retailer in the data has 161 stores. The next highest number of stores for any retailer code is 78. Additionally, all 161 stores are contained in the Chicago DMA description. This leads us to believe that the selected retailer is the Supervalu retailer located in Chicago.
+
+\hypertarget{model-specification}{%
+\section{Model Specification}\label{model-specification}}
+
+We can include math using LaTeX within the \texttt{\$}, \texttt{\$\$}, or \texttt{\textbackslash{}begin\{equation\}} and \texttt{\textbackslash{}end\{equation\}} syntax. For example, \texttt{\$y\ =\ \textbackslash{}beta\ x\ +\ \textbackslash{}epsilon\$} produces \(y = \beta x + \epsilon\) and
+
+\begin{equation}
+Pr(y_{n,h}=p|\beta_n) = \frac{\exp{(x_{p,h}'\beta_n)}}{\sum_{p=1}^P\exp{(x_{p,h}'\beta_n)}}
+\label{eq:mnl}
+\end{equation}
+
+\noindent is produced using the \texttt{\textbackslash{}begin\{equation\}} and \texttt{\textbackslash{}end\{equation\}} syntax. The equation has to be labeled with \texttt{(\textbackslash{}\#eq:label)} so it can be referenced with \texttt{\textbackslash{}@ref(eq:label)} like Equation \eqref{eq:mnl}.
+
+\hypertarget{empirical-application}{%
+\section{Empirical Application}\label{empirical-application}}
+
+Using R Markdown means we can use Markdown, R, and LaTeX (along with other languages) interchangeably. To illustrate, while we can create a table using LaTeX or Markdown, we can also just print a data frame using \texttt{knitr::kable()} and the \texttt{kableExtra} package. The name of the code chunk is the label that can be referenced with \texttt{\textbackslash{}@ref(tab:label)} like Table \ref{tab:tab-data}. For more table options, see the \href{https://haozhu233.github.io/kableExtra/awesome_table_in_pdf.pdf}{kableExtra vignette}.
+
+Similarly, while we can include a figure using LaTeX or Markdown, we can also use \texttt{knitr::include\_graphics()}. Once again, the name of the code chunk is the label that can be referenced with \texttt{\textbackslash{}@ref(fig:label)} like Figure \ref{fig:fig-slug}.
+
+\hypertarget{results}{%
+\section{Results}\label{results}}
+
+\hypertarget{conclusion}{%
+\section{Conclusion}\label{conclusion}}
+
+One final note. While the bibliography will be placed automatically at the end of the paper, we may have a few additional citations like R packages and other software to include that aren't explicitly cited elsewhere that we can include using the LaTeX syntax \texttt{\textbackslash{}nocite\{author:year,\ author:year\}} (since we are using \texttt{natbib} for citations) as is demonstrated in the following bibliography.
+
+\nocite{bayesm:2018, loo:2018}
+
+% References.
+\pagebreak
+\bibliographystyle{mktg-bib}
+\bibliography{references.bib}
+
+\end{document}
