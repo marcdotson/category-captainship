@@ -19,13 +19,16 @@ parameters{
   real beta_0; //Intercept
   real<lower=0> sigma2; //Error term variance
   matrix[S, B] beta; //Control unit weights, move to transformed parameters if using beta_raw
-
+  real<lower=0> tau; //global shrinkage 
+  matrix<lower=0>[S, B] lambda; //local shrinkage 
 }
 
 transformed parameters{
   real<lower=0> sigma; //Error term sd
+  matrix<lower=0>[B, B] lambda2; 
   matrix[N_train,B] X_beta; //Synthetic control unit prediction in the pre-treatment period
   sigma = sqrt(sigma2);
+  lambda2 = lambda' * lambda; 
   
   for(b in 1:B) {
     //for(s in 1:S) {
@@ -36,10 +39,12 @@ transformed parameters{
 // The model to be estimated. 
 model{
   //Pre-treatment estimation
+  tau ~ cauchy(0, sigma); 
   sigma ~ cauchy(0,10);
   beta_0 ~ cauchy(0,10);
   for(b in 1:B) {
-    beta[,b] ~ normal(0, 1); 
+    lambda[,b] ~ cauchy(0, tau); 
+    beta[,b] ~ normal(0, lambda2[b,b]); 
   }
   for(b in 1:B) {
     y_train[,b] ~ normal(X_beta[,b], sigma); 
