@@ -1,18 +1,16 @@
 ---
-title: "Bayesian Synthetic Control with intercept"
+title: "Bayesian Synthetic Control Method with a Horseshoe Prior"
 author: "Morgan Bale"
-date: "10/28/2021"
 output: github_document
 ---
 
-The purpose of this file is to add an intercept and horseshoe priors to the Bayesian synthetic control method tested in `testing_bscm`. The model comes from the web index of the Gupta et al, part B.1 BSCM-Horseshoe. 
+The purpose of this file to simulate data and replicate a Bayesian synthetic control method that we might use. The model comes from the web index of the Gupta paper, part B.1 BSCM-Horseshoe.
 
 ```{r opts, echo=FALSE}
 library(tidyverse)
 library(rstan)
 library(bayesplot)
 library(gtools)
-library(rstan)
 
 rstan_options(auto_write=TRUE) # writes a compiled Stan program to the disk to avoid recompiling
 options(mc.cores = parallel::detectCores()-1) # uses multiple cores for stan
@@ -24,14 +22,14 @@ knitr::opts_chunk$set(
 
 ##### DATA #######
 
-Function for making synthetic data: values picked from simulation studies done in Gupta et al 
-```{r bscm_intercept}
+Function for making synthetic data.
+
+```{r}
 gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
                         N_test=40,      #num of obs in post treatment 
                         p=5,            #num of control units
                         tau=0.01,        #global shrinkage 
-                        mu=c(15, 35, 10, 20, 30), 
-                        beta_0=5
+                        mu=c(15, 35, 10, 20, 30)
                         ) {
   
   # data for control units
@@ -55,18 +53,19 @@ gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
     #beta[j] = lambda[j] * beta_raw[j]
   #}
   
-  beta <- c(-.5, 2, 0, 0, 0) 
+  beta <- c(.2, .8, 0, 0, 0) 
   
   #model 
   epsilon <- rnorm(N_train, mean=0, sd=1)
-  y_train <- beta_0 + X_train%*%beta + epsilon
+  y_train <- X_train%*%beta + epsilon
 
   #make a list for stan
-  list(N_train=N_train, N_test=N_test, p=p, tau=tau, X_train=X_train, X_test=X_test, beta=beta, y_train=as.vector(y_train), beta_0=beta_0)}
+  list(N_train=N_train, N_test=N_test, p=p, tau=tau, X_train=X_train, X_test=X_test, beta=beta, y_train=as.vector(y_train))}
 ```
 
-Create synthetic data
-```{r bscm_intercept}
+Now we can simulate data.
+
+```{r}
 set.seed(2020)
 b1_data <- gen_b1_data()
 #str(b1_data)
@@ -74,34 +73,33 @@ b1_data <- gen_b1_data()
 
 ###### MODEL ########
 
-Run model using `bcsm_b1_intercept.stan`
-```{r bscm_intercept}
-b1_model <- stan_model(file="bscm_b1_intercept.stan")
+Run model using `bcsm_b1.stan`
+
+```{r}
+b1_model <- stan_model(file = here::here("Code", "Model", "bscm_b1.stan"))
 #print(b1_model)
-```
 
-```{r bscm_intercept}
 draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
-```
 
+#try adapt delta
+#draws <- stan("bscm_b1.stan", data=b1_data, seed=2020, cores=3, control=list(adapt_delta=.9))
+```
 
 ###### RESULTS ######
 
-Check results
-```{r bscm_intercept}
+Check results.
+
+```{r horseshoe-recovery}
 #traceplots
 traceplot(draws, pars="beta")
-traceplot(draws, pars="beta_0")
 traceplot(draws, pars="sigma")
-```
 
-```{r bscm_intercept}
 mcmc_recover_hist(As.mcmc.list(draws, pars="beta"), true=as.vector(t(b1_data$beta)))
-mcmc_recover_hist(As.mcmc.list(draws, pars="beta_0"), true=as.vector(t(b1_data$beta_0)))
 ```
 
-Fitted Synthetic Control for pre treatment
-```{r bscm_intercept}
+Fitted Synthetic Control for pre-treatment.
+
+```{r}
 #synthetic control for pre treatment
 y_fit <- summary(draws, pars="y_fit")
 
@@ -120,7 +118,8 @@ names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
 ```
 
 Treated unit in the pre treatment
-```{r bscm_intercept}
+
+```{r horseshoe-pre-treatment}
 y_train <- b1_data$y_train
 
 sc_data <- sc_pre %>% bind_cols(y_train)
@@ -132,7 +131,8 @@ sc_data %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="
 ```
 
 Predicted Synthetic Control for post treatment
-```{r bscm_intercept}
+
+```{r}
 y_test <- summary(draws, pars="y_test")
 
 sc_post <- tibble(y_test[[1]][,1])
@@ -150,9 +150,10 @@ names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
 #gray is 95% CI 
 ```
 
-Make treatment data for post period: this code only works if number of post treatment periods=number pre treatment periods
-```{r bscm_intercept}
-y_post <- y_train + 30
+Make treatment data for post period
+
+```{r horseshoe-post-period}
+y_post <- y_train + 15
 y_post <- y_post[1:b1_data$N_test]
 
 y_post <- as_tibble(y_post) %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
