@@ -78,8 +78,9 @@ Run model using `bcsm_b1_intercept.stan`
 
 ```{r}
 b1_model <- stan_model(file = here::here("Code", "Model", "bscm_b1_intercept.stan"))
-#print(b1_model)
+print(b1_model)
 
+tempdir()
 draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
 ```
 
