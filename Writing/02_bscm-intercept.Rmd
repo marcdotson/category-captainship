@@ -4,7 +4,7 @@ author: "Morgan Bale"
 output: github_document
 ---
 
-The purpose of this file is to add an intercept and horseshoe priors to the Bayesian synthetic control method tested in `01_bscm-horseshoe`. The model comes from the web index of the Gupta et al, part B.1 BSCM-Horseshoe. 
+The purpose of this file is to add an intercept and horseshoe priors to the Bayesian synthetic control method tested in `01_bscm-horseshoe`. The model comes from the web index of the Gupta et al, part B.1 BSCM-Horseshoe, we explore two parameterizations, (1) from the paper itself, and (2) from the web appendix.
 
 ```{r opts, echo=FALSE}
 library(tidyverse)
@@ -72,27 +72,27 @@ b1_data <- gen_b1_data()
 #str(b1_data)
 ```
 
-###### MODEL ########
+###### MODEL: PAPER PARAMETERIZATION ########
 
-Run model using `bcsm_b1_intercept.stan`
+Run model using `bcsm_b1_intercept_p1.stan`. This model tries to recreate the model according to the syntax in the paper and the commented out code in the web appendix. This version creates divergent transitions. 
 
 ```{r}
-b1_model <- stan_model(file = here::here("Code", "Model", "bscm_b1_intercept.stan"))
+b1_model <- stan_model(file = here::here("Code", "Model", "bscm_b1_intercept_p1.stan"))
 print(b1_model)
 
-tempdir()
 draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
 ```
 
-###### RESULTS ######
+###### RESULTS: PAPER PARAMETERIZATION ######
 
-Check results
+Check results: the traceplots do not look good, but the sampler recovers the beta parameters. The synthetic control matches the treatment group in the pre period. 
 
 ```{r intercept-recovery}
 #traceplots
 traceplot(draws, pars="beta")
 traceplot(draws, pars="beta_0")
 traceplot(draws, pars="sigma")
+traceplot(draws, pars="lambda")
 
 mcmc_recover_hist(As.mcmc.list(draws, pars="beta"), true=as.vector(t(b1_data$beta)))
 mcmc_recover_hist(As.mcmc.list(draws, pars="beta_0"), true=as.vector(t(b1_data$beta_0)))
@@ -119,7 +119,6 @@ names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
 ```
 
 Treated unit in the pre treatment
-
 ```{r intercept-pre-treatment}
 y_train <- b1_data$y_train
 
@@ -127,12 +126,11 @@ sc_data <- sc_pre %>% bind_cols(y_train)
 
 names(sc_data)[5] <- "treatment_group"
 
-sc_data %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") + 
-  labs(x="Week", y="Pre Treatment Value") + ggtitle("Pre Treatment Synthetic Control (blue) vs Treatment Group (red)") 
+#sc_data %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") + 
+  #labs(x="Week", y="Pre Treatment Value") + ggtitle("Pre Treatment Synthetic Control (blue) vs Treatment Group (red)") 
 ```
 
 Predicted Synthetic Control for post treatment
-
 ```{r}
 y_test <- summary(draws, pars="y_test")
 
@@ -152,7 +150,6 @@ names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
 ```
 
 Make treatment data for post period: this code only works if number of post treatment periods=number pre treatment periods
-
 ```{r intercept-post-period}
 y_post <- y_train + 30
 y_post <- y_post[1:b1_data$N_test]
@@ -168,4 +165,102 @@ total_sc_data <- sc_data %>% bind_rows(sc_post)
 total_sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") +
   labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train) 
 ```
+
+###### MODEL: APPENDIX PARAMETERIZATION ########
+
+Run model using `bcsm_b1_intercept_p2.stan`. This model tries to recreate the model according to the syntax in the web appendix. This version also has divergent transitions, but less than the paper parameterization. 
+```{r}
+b1_model_p2 <- stan_model(file = here::here("Code", "Model", "bscm_b1_intercept_p2.stan"))
+print(b1_model_p2)
+
+draws2 <- sampling(b1_model_p2, data=b1_data, seed=2020, cores=3)
+```
+
+###### RESULTS: APPENDIX PARAMETERIZATION ######
+
+Check results: The model recovers well, the traceplots look good and the synthetic control matches the treatment unit in the pre period. 
+
+```{r intercept-recovery-p2}
+#traceplots
+traceplot(draws2, pars="beta")
+traceplot(draws2, pars="beta_0")
+traceplot(draws2, pars="sigma")
+traceplot(draws2, pars="lambda")
+
+mcmc_recover_hist(As.mcmc.list(draws2, pars="beta"), true=as.vector(t(b1_data$beta)))
+mcmc_recover_hist(As.mcmc.list(draws2, pars="beta_0"), true=as.vector(t(b1_data$beta_0)))
+```
+
+Fitted Synthetic Control for pre treatment
+
+```{r}
+#synthetic control for pre treatment
+y_fit <- summary(draws2, pars="y_fit")
+
+sc_pre <- tibble(y_fit[[1]][,1])
+
+lower <- y_fit[[1]][,4]
+upper <- y_fit[[1]][,8]
+
+sc_pre <- sc_pre %>% bind_cols(lower, upper)
+
+sc_pre <- sc_pre %>% mutate(week=rep(1:b1_data$N_train))
+
+names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
+
+#sc_pre %>% ggplot(aes(x=week, y=synthetic_control))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line() + ggtitle("Synthetic Control in the Pre Treatment") + labs(x="Week", y="Control Observations") 
+```
+
+Treated unit in the pre treatment
+```{r intercept-pre-treatment-p2}
+y_train <- b1_data$y_train
+
+sc_data <- sc_pre %>% bind_cols(y_train)
+
+names(sc_data)[5] <- "treatment_group"
+
+#sc_data %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") + 
+  #labs(x="Week", y="Pre Treatment Value") + ggtitle("Pre Treatment Synthetic Control (blue) vs Treatment Group (red)") 
+```
+
+Predicted Synthetic Control for post treatment
+```{r}
+y_test <- summary(draws2, pars="y_test")
+
+sc_post <- tibble(y_test[[1]][,1])
+
+lower <- y_test[[1]][,4]
+upper <- y_test[[1]][,8]
+
+sc_post <- sc_post %>% bind_cols(lower, upper)
+
+sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
+
+names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
+
+#sc_post %>% ggplot(aes(x=week, y=synthetic_control)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line() + ggtitle("Synthetic Control in the Post Treatment") + labs(x="Week", y="Control Value")
+#gray is 95% CI 
+```
+
+Make treatment data for post period: this code only works if number of post treatment periods=number pre treatment periods
+```{r intercept-post-period-p2}
+y_post <- y_train + 30
+y_post <- y_post[1:b1_data$N_test]
+
+y_post <- as_tibble(y_post) %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
+
+sc_post <- sc_post %>% left_join(y_post, by="week")
+
+names(sc_post)[5] <- "treatment_group"
+
+total_sc_data <- sc_data %>% bind_rows(sc_post)
+
+total_sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") +
+  labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train) 
+```
+
+
+
+
+
 
