@@ -6,7 +6,7 @@ The purpose of this file is to add an intercept and horseshoe priors to
 the Bayesian synthetic control method tested in `01_bscm-horseshoe`. The
 model comes from the web index of the Gupta et al, part B.1
 BSCM-Horseshoe, we explore two parameterizations, (1) from the paper
-itself, and (2) from the web appendix.
+itself (centered), and (2) from the web appendix (non-centered).
 
     ## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.1 ──
 
@@ -51,8 +51,8 @@ Function for making synthetic data: values picked from simulation
 studies done in Gupta et al.
 
 ``` r
-gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
-                        N_test=40,      #num of obs in post treatment 
+gen_b1_data <- function(N_train=80,     #num of obs in pre treatment
+                        N_test=80,      #num of obs in post treatment 
                         p=5,            #num of control units
                         tau=0.01,        #global shrinkage 
                         mu=c(15, 35, 10, 20, 30), 
@@ -98,7 +98,7 @@ b1_data <- gen_b1_data()
 #str(b1_data)
 ```
 
-###### MODEL: PAPER PARAMETERIZATION
+###### MODEL: CENTERED PARAMETERIZATION
 
 Run model using `bcsm_b1_intercept_p1.stan`. This model tries to
 recreate the model according to the syntax in the paper and the
@@ -177,15 +177,11 @@ print(b1_model)
 draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
 ```
 
-    ## Warning: There were 734 divergent transitions after warmup. See
+    ## Warning: There were 431 divergent transitions after warmup. See
     ## http://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
     ## to find out why this is a problem and how to eliminate them.
 
     ## Warning: Examine the pairs() plot to diagnose sampling problems
-
-    ## Warning: The largest R-hat is 1.08, indicating chains have not mixed.
-    ## Running the chains for more iterations may help. See
-    ## http://mc-stan.org/misc/warnings.html#r-hat
 
     ## Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
     ## Running the chains for more iterations may help. See
@@ -195,7 +191,7 @@ draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
     ## Running the chains for more iterations may help. See
     ## http://mc-stan.org/misc/warnings.html#tail-ess
 
-###### RESULTS: PAPER PARAMETERIZATION
+###### RESULTS: CENTERED PARAMETERIZATION
 
 Check results: the traceplots do not look good, but the sampler recovers
 the beta parameters. The synthetic control matches the treatment group
@@ -333,7 +329,7 @@ total_sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper),
 
 ![](../Figures/bscm/intercept-post-period-1.png)<!-- -->
 
-###### MODEL: APPENDIX PARAMETERIZATION
+###### MODEL: NON-CENTERED PARAMETERIZATION
 
 Run model using `bcsm_b1_intercept_p2.stan`. This model tries to
 recreate the model according to the syntax in the web appendix. This
@@ -415,14 +411,18 @@ print(b1_model_p2)
 draws2 <- sampling(b1_model_p2, data=b1_data, seed=2020, cores=3)
 ```
 
-    ## Warning: There were 116 divergent transitions after warmup. See
+    ## Warning: There were 106 divergent transitions after warmup. See
     ## http://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
     ## to find out why this is a problem and how to eliminate them.
 
-    ## Warning: There were 3825 transitions after warmup that exceeded the maximum treedepth. Increase max_treedepth above 10. See
+    ## Warning: There were 3861 transitions after warmup that exceeded the maximum treedepth. Increase max_treedepth above 10. See
     ## http://mc-stan.org/misc/warnings.html#maximum-treedepth-exceeded
 
     ## Warning: Examine the pairs() plot to diagnose sampling problems
+
+    ## Warning: The largest R-hat is 1.1, indicating chains have not mixed.
+    ## Running the chains for more iterations may help. See
+    ## http://mc-stan.org/misc/warnings.html#r-hat
 
     ## Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
     ## Running the chains for more iterations may help. See
@@ -432,7 +432,7 @@ draws2 <- sampling(b1_model_p2, data=b1_data, seed=2020, cores=3)
     ## Running the chains for more iterations may help. See
     ## http://mc-stan.org/misc/warnings.html#tail-ess
 
-###### RESULTS: APPENDIX PARAMETERIZATION
+###### RESULTS: NON CENTERED PARAMETERIZATION
 
 Check results: The model recovers well, the traceplots look good and the
 synthetic control matches the treatment unit in the pre period.
