@@ -4,7 +4,7 @@ author: "Morgan Bale"
 output: github_document
 ---
 
-The purpose of this file to use synthetic data to test the bayesian synthetic control model with data at the store, brand, and time level. The model comes from the web index of the Gupta paper, part B.1 BSCM-Horseshoe. This file begins to customize the model to our paper, e.g. changing index and variable names and is built off of the file `02_bscm-intercept`.
+The purpose of this file to use synthetic data to test the bayesian synthetic control model with data at the store, brand, and time level. The model comes from the web index of the Gupta paper, part B.1 BSCM-Horseshoe. This file begins to customize the model to our paper, e.g. changing index and variable names and is built off of the file `02_bscm-intercept`. We use two different versions of the model: (1) centered from their paper, and (2) non-centered from the code in their web appendix. The centered parameterization works best for this model. 
 
 ```{r opts, echo=FALSE}
 library(tidyverse)
@@ -23,7 +23,7 @@ knitr::opts_chunk$set(
 
 ##### DATA #######
 
-Function for making synthetic data: incorporate brand and store level data across multiple time periods. Assume brands are nested within stores? 
+Function for making synthetic data: incorporate brand and store level data across multiple time periods. Assume brands are nested within stores. 
 
 ```{r}
 gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
@@ -43,12 +43,6 @@ gen_b1_data <- function(N_train=40,     #num of obs in pre treatment
     X_train[b,,] <- matrix(rnorm(N_train*S, mean=mu[b], sd=10), nrow=N_train, ncol=S)     #control unit matrix in pre treatment
     X_test[b,,] <- matrix(rnorm(N_test*S, mean=mu[b], sd=10), nrow=N_test, ncol=S)
   }
-  
-  #try drawing betas based on lambda, tau, sigma
-  #sigma <- abs(rcauchy(1, location=0, scale=10))
-  #tau <- abs(rcauchy(1, location=0, scale=sigma)) 
-  #lambda <- matrix(abs(rcauchy(S*B, location=0, scale=tau)), nrow=S, ncol=B)
-  #beta <- matrix(rnorm(S*B, mean=0, sd=lambda), nrow=S, ncol=B)
   
   beta <- matrix(c(-.5, 2, 0, -.5, 2, 0), nrow=S, ncol=B)
   
@@ -75,25 +69,24 @@ Create synthetic data
 ```{r}
 set.seed(2020)
 b1_data <- gen_b1_data()
-#str(b1_data)
 ```
 
-###### MODEL ########
+###### MODEL: CENTERED PARAMETERIZATION ########
 
-Run model using `bscm_level1.stan`.
+Run model using `bscm_level1_p1.stan`.
 
 ```{r}
-b1_model <- stan_model(file = here::here("Code", "Model", "bscm_level1.stan"))
-print(b1_model)
+b1_model_p1 <- stan_model(file = here::here("Code", "Model", "bscm_level1_p1.stan"))
+print(b1_model_p1)
 
-draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
+draws <- sampling(b1_model_p1, data=b1_data, seed=2020, cores=3)
 ```
 
-###### RESULTS ######
+###### RESULTS: CENTERED PARAMETERIZATION ######
 
-Check results
+Check results: there are no divergent transitions, the traceplots converge, and the model recovers our parameters. 
 
-```{r levels-recovery}
+```{r levels-recovery-p1}
 #traceplots
 traceplot(draws, pars="beta_0")
 traceplot(draws, pars="beta") #(S,B)
@@ -125,7 +118,7 @@ names(sc_pre) <- c("synthetic_control","lower", "upper", "week", "brand")
 
 Treated unit in the pre treatment
 
-```{r levels-pre-treatment}
+```{r levels-pre-treatment-p1}
 y_train <- b1_data$y_train
 
 y_train <-y_train %>% melt(id.vars=c("V1", "V2", "V3"), value.name="treated")
@@ -134,8 +127,8 @@ names(y_train) <- c("week", "brand", "treated")
 
 sc_data <- sc_pre %>% left_join(y_train, by=c("week", "brand"))
 
-sc_data %>% ggplot(aes(x=week)) + geom_line(aes(y=treated, color=as.factor(brand))) + geom_line(aes(y=synthetic_control, color=as.factor(brand)), linetype="dashed") + scale_color_manual(values=c("navyblue", "darkred", "steelblue")) + 
-  labs(x="Week", y="Pre Treatment Value", color="Brand") + ggtitle("Pre Treatment Synthetic Control (dashed) vs Treatment Group (solid)") 
+#sc_data %>% ggplot(aes(x=week)) + geom_line(aes(y=treated, color=as.factor(brand))) + geom_line(aes(y=synthetic_control, color=as.factor(brand)), linetype="dashed") + scale_color_manual(values=c("navyblue", "darkred", "steelblue")) + 
+  #labs(x="Week", y="Pre Treatment Value", color="Brand") + ggtitle("Pre Treatment Synthetic Control (dashed) vs Treatment Group (solid)") 
 ```
 
 Predicted Synthetic Control for post treatment
@@ -157,7 +150,7 @@ names(sc_post) <- c("synthetic_control", "lower", "upper", "week", "brand")
 
 Make treatment data for post period
 
-```{r levels-post-period}
+```{r levels-post-period-p1}
 y_post <- y_train %>% mutate(treated=treated+10, week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test), times=b1_data$B))
 
 sc_post <- sc_post %>% left_join(y_post, by=c("week", "brand"))
@@ -172,22 +165,136 @@ Plot by brand to be able to see post period better:
 
 BRAND 1
 
-```{r levels-brand-01}
+```{r levels-brand-01-p1}
 total_sc_data %>% filter(brand==1) %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treated), color="navyblue") + geom_line(aes(y=synthetic_control),color="navyblue", linetype="dashed") +
   labs(x="Week", y="Value") + ggtitle("Synthetic Control (dashed) vs Treatment Group (solid): Brand 1") + geom_vline(xintercept=b1_data$N_train)
 ```
 
 BRAND 2
 
-```{r levels-brand-02}
+```{r levels-brand-02-p1}
 total_sc_data %>% filter(brand==2) %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treated), color="darkred") + geom_line(aes(y=synthetic_control),color="darkred", linetype="dashed") +
   labs(x="Week", y="Value") + ggtitle("Synthetic Control (dashed) vs Treatment Group (solid): Brand 2") + geom_vline(xintercept=b1_data$N_train)
 ```
 
 BRAND 3
 
-```{r levels-brand-03}
+```{r levels-brand-03-p1}
 total_sc_data %>% filter(brand==3) %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treated), color="steelblue") + geom_line(aes(y=synthetic_control),color="steelblue", linetype="dashed") +
   labs(x="Week", y="Value") + ggtitle("Synthetic Control (dashed) vs Treatment Group (solid): Brand 3") + geom_vline(xintercept=b1_data$N_train)
 ```
+
+###### MODEL: NON-CENTERED PARAMETERIZATION ########
+
+Run model using `bscm_level1_p2.stan`.
+
+```{r}
+b1_model_p2 <- stan_model(file = here::here("Code", "Model", "bscm_level1_p2.stan"))
+print(b1_model_p2)
+
+draws <- sampling(b1_model_p2, data=b1_data, seed=2020, cores=3)
+```
+
+###### RESULTS ######
+
+Check results: there are divergent transitions and the traceplots look okay. 
+
+```{r levels-recovery-p2}
+#traceplots
+traceplot(draws, pars="beta_0")
+traceplot(draws, pars="beta") #(S,B)
+traceplot(draws, pars="sigma")
+traceplot(draws, pars="lambda") #(S,B)
+traceplot(draws, pars="tau")
+
+mcmc_recover_hist(As.mcmc.list(draws, pars="beta"), true=as.vector(t(b1_data$beta)))
+mcmc_recover_hist(As.mcmc.list(draws, pars="beta_0"), true=as.vector(t(b1_data$beta_0)))
+```
+
+Fitted Synthetic Control for pre treatment
+
+```{r}
+#synthetic control for pre treatment
+y_fit <- summary(draws, pars="y_fit")  #(N_train, B)
+
+sc_pre <- tibble(y_fit[[1]][,1])
+
+lower <- y_fit[[1]][,4]
+upper <- y_fit[[1]][,8]
+
+sc_pre <- sc_pre %>% bind_cols(lower, upper)
+
+sc_pre <- sc_pre %>% mutate(week=rep(1:b1_data$N_train, each=b1_data$B), brand=rep(1:b1_data$B, times=b1_data$N_train))
+
+names(sc_pre) <- c("synthetic_control","lower", "upper", "week", "brand")
+```
+
+Treated unit in the pre treatment
+
+```{r levels-pre-treatment-p2}
+y_train <- b1_data$y_train
+
+y_train <-y_train %>% melt(id.vars=c("V1", "V2", "V3"), value.name="treated")
+
+names(y_train) <- c("week", "brand", "treated")
+
+sc_data <- sc_pre %>% left_join(y_train, by=c("week", "brand"))
+
+#sc_data %>% ggplot(aes(x=week)) + geom_line(aes(y=treated, color=as.factor(brand))) + geom_line(aes(y=synthetic_control, color=as.factor(brand)), linetype="dashed") + scale_color_manual(values=c("navyblue", "darkred", "steelblue")) + 
+  #labs(x="Week", y="Pre Treatment Value", color="Brand") + ggtitle("Pre Treatment Synthetic Control (dashed) vs Treatment Group (solid)") 
+```
+
+Predicted Synthetic Control for post treatment
+
+```{r}
+y_test <- summary(draws, pars="y_test") #(N_test, B)
+
+sc_post <- tibble(y_test[[1]][,1])
+
+lower <- y_test[[1]][,4]
+upper <- y_test[[1]][,8]
+
+sc_post <- sc_post %>% bind_cols(lower, upper)
+
+sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test), each=b1_data$B), brand=rep(1:b1_data$B, times=b1_data$N_test))
+
+names(sc_post) <- c("synthetic_control", "lower", "upper", "week", "brand")
+```
+
+Make treatment data for post period
+
+```{r levels-post-period-p2}
+y_post <- y_train %>% mutate(treated=treated+10, week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test), times=b1_data$B))
+
+sc_post <- sc_post %>% left_join(y_post, by=c("week", "brand"))
+
+total_sc_data <- sc_data %>% bind_rows(sc_post)
+
+total_sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treated, color=as.factor(brand))) + geom_line(aes(y=synthetic_control,  color=as.factor(brand)), linetype="dashed") +
+  labs(x="Week", y="Value", color="Brand") + ggtitle("Synthetic Control (dashed) vs Treatment Group (solid)") + geom_vline(xintercept=b1_data$N_train) + scale_color_manual(values=c("navyblue", "darkred", "steelblue"))
+```
+
+Plot by brand to be able to see post period better:
+
+BRAND 1
+
+```{r levels-brand-01-p2}
+total_sc_data %>% filter(brand==1) %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treated), color="navyblue") + geom_line(aes(y=synthetic_control),color="navyblue", linetype="dashed") +
+  labs(x="Week", y="Value") + ggtitle("Synthetic Control (dashed) vs Treatment Group (solid): Brand 1") + geom_vline(xintercept=b1_data$N_train)
+```
+
+BRAND 2
+
+```{r levels-brand-02-p2}
+total_sc_data %>% filter(brand==2) %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treated), color="darkred") + geom_line(aes(y=synthetic_control),color="darkred", linetype="dashed") +
+  labs(x="Week", y="Value") + ggtitle("Synthetic Control (dashed) vs Treatment Group (solid): Brand 2") + geom_vline(xintercept=b1_data$N_train)
+```
+
+BRAND 3
+
+```{r levels-brand-03-p2}
+total_sc_data %>% filter(brand==3) %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treated), color="steelblue") + geom_line(aes(y=synthetic_control),color="steelblue", linetype="dashed") +
+  labs(x="Week", y="Value") + ggtitle("Synthetic Control (dashed) vs Treatment Group (solid): Brand 3") + geom_vline(xintercept=b1_data$N_train)
+```
+
 

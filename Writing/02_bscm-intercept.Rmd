@@ -4,7 +4,7 @@ author: "Morgan Bale"
 output: github_document
 ---
 
-The purpose of this file is to add an intercept and horseshoe priors to the Bayesian synthetic control method tested in `01_bscm-horseshoe`. The model comes from the web index of the Gupta et al, part B.1 BSCM-Horseshoe, we explore two parameterizations, (1) from the paper itself (centered), and (2) from the web appendix (non-centered).
+The purpose of this file is to add an intercept and horseshoe priors to the Bayesian synthetic control method tested in `01_bscm-horseshoe`. The model comes from the web index of the Gupta et al, part B.1 BSCM-Horseshoe, we explore two parameterizations, (1) from the paper itself (centered), and (2) from the web appendix (non-centered). The non-centered parameterization works better for this model. 
 
 ```{r opts, echo=FALSE}
 library(tidyverse)
