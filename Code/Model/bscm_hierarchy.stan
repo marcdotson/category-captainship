@@ -8,32 +8,28 @@ data{
   int N_train; //Number of observations in the pre-treatment periods
   int N_test; //Number of observations in the post-treatment periods
   int p; //Number of control units
-  int s; //number of control store covariates
+  int K; //number of control store covariates
   real y_train[N_train]; //Treated unit in the pre-treatment periods
   matrix[N_train, p] X_train; //Control unit matrix in the pre-treatment
   matrix[N_test, p] X_test; //Control unit matrix in the post-treatment
-  matrix[p, s] Z;  //control store covariates 
+  matrix[K, p] Z;  //control store covariates 
 }
 
 // The parameters accepted by the model. 
 parameters{
-  real<lower=0> sigma2; //Error term variance
-  real<lower=0> eta2; //Error term variance for Beta eq
+  real<lower=0> sigma; //variance for beta equation
+  real<lower=0> epsilon; //variance for likelihood
   vector[p] beta; 
   //Hyperparameters prior
-  vector[s] theta;        //hierarchical effect 
+  vector[K] theta;        //hierarchical effect 
   //real<lower=0> tau; //Global shrinkage
   real beta_0; //intercept 
   //vector<lower=0>[p] lambda; //Local shrinkage
 }
 
 transformed parameters{
-  real<lower=0> sigma; //Error term sd
-  real<lower=0> eta; //Error term sd for Beta eq
   //vector<lower=0>[p] lambda2; 
   vector[N_train] X_beta; //Synthetic control unit prediction in the pre-treatment period
-  sigma = sqrt(sigma2);
-  eta = sqrt(eta2); 
   X_beta = beta_0 + X_train*beta;
   //lambda2 = lambda .* lambda; 
 }
@@ -43,12 +39,12 @@ model{
   //Pre-treatment estimation
   //lambda ~ cauchy(0, tau); 
   //tau ~ cauchy(0, sigma);
-  sigma ~ cauchy(0,10);
-  eta ~ cauchy(0, 10); 
-  theta ~ normal(0, 1); 
-  beta_0 ~ cauchy(0,10);
-  beta ~ normal(Z*theta, eta);
-  y_train ~ normal(X_beta, sigma);
+  sigma ~ normal(0,5);
+  epsilon ~ normal(0,5); 
+  theta ~ normal(0, 5); 
+  beta_0 ~ normal(0,5);
+  beta ~ normal(theta'*Z, sigma);
+  y_train ~ normal(X_beta, epsilon);
 }
 
 generated quantities{

@@ -1,30 +1,54 @@
----
-title: "Bayesian Synthetic Control Method with a Hierarchical Weights"
-author: "Morgan Bale"
-date: "2/11/2022"
-output: github_document
----
+Bayesian Synthetic Control Method with a Hierarchical Weights
+================
+Morgan Bale
+2/11/2022
 
-The purpose of this file is to build off of `02_bscm-intercept`, by adding a hierarchy to the Betas. NO HORESHOE PRIOR AS OF 2/22/22 
+The purpose of this file is to build off of `02_bscm-intercept`, by
+adding a hierarchy to the Betas. NO HORESHOE PRIOR AS OF 2/11/22
 
-```{r opts, echo=FALSE}
-library(tidyverse)
-library(rstan)
-library(bayesplot)
-library(gtools)
+    ## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.1 ──
 
-rstan_options(auto_write=TRUE) # writes a compiled Stan program to the disk to avoid recompiling
-options(mc.cores = parallel::detectCores()-1) # uses multiple cores for stan
+    ## ✓ ggplot2 3.3.5     ✓ purrr   0.3.4
+    ## ✓ tibble  3.1.4     ✓ dplyr   1.0.7
+    ## ✓ tidyr   1.1.3     ✓ stringr 1.4.0
+    ## ✓ readr   2.0.1     ✓ forcats 0.5.1
 
-knitr::opts_chunk$set(
-  fig.path = "../Figures/bscm/"
-)
-```
+    ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+    ## x dplyr::filter() masks stats::filter()
+    ## x dplyr::lag()    masks stats::lag()
 
-##### DATA #######
+    ## Loading required package: StanHeaders
 
-Make synthetic data: values picked from simulation studies done in Gupta et al.
-```{r}
+    ## rstan (Version 2.21.2, GitRev: 2e1f913d3ca3)
+
+    ## For execution on a local, multicore CPU with excess RAM we recommend calling
+    ## options(mc.cores = parallel::detectCores()).
+    ## To avoid recompilation of unchanged Stan programs, we recommend calling
+    ## rstan_options(auto_write = TRUE)
+
+    ## 
+    ## Attaching package: 'rstan'
+
+    ## The following object is masked from 'package:tidyr':
+    ## 
+    ##     extract
+
+    ## This is bayesplot version 1.8.1
+
+    ## - Online documentation and vignettes at mc-stan.org/bayesplot
+
+    ## - bayesplot theme set to bayesplot::theme_default()
+
+    ##    * Does _not_ affect other ggplot2 plots
+
+    ##    * See ?bayesplot_theme_set for details on theme setting
+
+##### DATA
+
+Make synthetic data: values picked from simulation studies done in Gupta
+et al.
+
+``` r
 N_train=N_test=80
 p=5
 K=3
@@ -48,7 +72,8 @@ sim_values <- list(N_train=N_train, N_test=N_test, p=p, K=K, X_train=X_train, X_
 ```
 
 Generate data in stan
-```{r}
+
+``` r
 sim_data <- stan(
   file = here::here("Code", "Model", "gen_hierarchy_data.stan"),
   data = sim_values,
@@ -57,7 +82,18 @@ sim_data <- stan(
   seed = 2020,
   algorithm = "Fixed_param"
 )
+```
 
+    ## 
+    ## SAMPLING FOR MODEL 'gen_hierarchy_data' NOW (CHAIN 1).
+    ## Chain 1: Iteration: 1 / 1 [100%]  (Sampling)
+    ## Chain 1: 
+    ## Chain 1:  Elapsed Time: 0 seconds (Warm-up)
+    ## Chain 1:                3.8e-05 seconds (Sampling)
+    ## Chain 1:                3.8e-05 seconds (Total)
+    ## Chain 1:
+
+``` r
 #extract values
 sim_beta <- extract(sim_data)$beta
 sim_theta <- extract(sim_data)$theta
@@ -70,38 +106,84 @@ sim_epsilon <- extract(sim_data)$epsilon
 b1_data <- list(N_train=N_train, N_test=N_test, p=p, K=K, X_train=X_train, X_test=X_test, Z=Z, beta=sim_beta, theta=sim_theta, y_train=as.vector(sim_ytrain), beta_0=sim_beta0, sigma=sim_sigma, epsilon=sim_epsilon)
 ```
 
+###### MODEL: CENTERED PARAMETERIZATION
 
-###### MODEL: CENTERED PARAMETERIZATION ########
+Run model using `bcsm_hierarchy.stan`. This model tries to recreate the
+model according to the syntax in the paper and the commented out code in
+the web appendix, we add a new hierarchical prior for Beta. No divergent
+transitions when horsehoe prior is not present.
 
-Run model using `bcsm_hierarchy.stan`. This model tries to recreate the model according to the syntax in the paper and the commented out code in the web appendix, we add a new hierarchical prior for Beta. No divergent transitions when horsehoe prior is not present. 
-
-```{r}
+``` r
 b1_model <- stan_model(file = here::here("Code", "Model", "bscm_hierarchy.stan"))
 #print(b1_model)
 
 draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
 ```
 
-###### RESULTS: CENTERED PARAMETERIZATION ######
+###### RESULTS: CENTERED PARAMETERIZATION
 
-Check results: the traceplots look good, the sampler recovers the beta and theta parameters. The synthetic control matches the treatment group in the pre period. 
+Check results: the traceplots look good, the sampler recovers the beta
+and theta parameters. The synthetic control matches the treatment group
+in the pre period.
 
-```{r hierarchy-recovery}
+``` r
 #traceplots
 traceplot(draws, pars="beta")
-traceplot(draws, pars="beta_0")
-traceplot(draws, pars="sigma")
-traceplot(draws, pars="theta")
-traceplot(draws, pars="epsilon")
+```
 
+![](../Figures/bscm/hierarchy-recovery-1.png)<!-- -->
+
+``` r
+traceplot(draws, pars="beta_0")
+```
+
+![](../Figures/bscm/hierarchy-recovery-2.png)<!-- -->
+
+``` r
+traceplot(draws, pars="sigma")
+```
+
+![](../Figures/bscm/hierarchy-recovery-3.png)<!-- -->
+
+``` r
+traceplot(draws, pars="theta")
+```
+
+![](../Figures/bscm/hierarchy-recovery-4.png)<!-- -->
+
+``` r
+traceplot(draws, pars="epsilon")
+```
+
+![](../Figures/bscm/hierarchy-recovery-5.png)<!-- -->
+
+``` r
 mcmc_recover_hist(As.mcmc.list(draws, pars="beta"), true=as.vector(t(b1_data$beta)))
+```
+
+    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+
+![](../Figures/bscm/hierarchy-recovery-6.png)<!-- -->
+
+``` r
 mcmc_recover_hist(As.mcmc.list(draws, pars="beta_0"), true=as.vector(t(b1_data$beta_0)))
+```
+
+    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+
+![](../Figures/bscm/hierarchy-recovery-7.png)<!-- -->
+
+``` r
 mcmc_recover_hist(As.mcmc.list(draws, pars="theta"), true=as.vector(t(b1_data$theta)))
 ```
 
+    ## `stat_bin()` using `bins = 30`. Pick better value with `binwidth`.
+
+![](../Figures/bscm/hierarchy-recovery-8.png)<!-- -->
+
 Fitted Synthetic Control for pre treatment
 
-```{r}
+``` r
 #synthetic control for pre treatment
 y_fit <- summary(draws, pars="y_fit")
 
@@ -111,7 +193,13 @@ lower <- y_fit[[1]][,4]
 upper <- y_fit[[1]][,8]
 
 sc_pre <- sc_pre %>% bind_cols(lower, upper)
+```
 
+    ## New names:
+    ## * NA -> ...2
+    ## * NA -> ...3
+
+``` r
 sc_pre <- sc_pre %>% mutate(week=rep(1:b1_data$N_train))
 
 names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
@@ -120,11 +208,17 @@ names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
 ```
 
 Treated unit in the pre treatment
-```{r hierarchy-pre-treatment}
+
+``` r
 y_train <- b1_data$y_train
 
 sc_data <- sc_pre %>% bind_cols(y_train)
+```
 
+    ## New names:
+    ## * NA -> ...5
+
+``` r
 names(sc_data)[5] <- "treatment_group"
 
 #sc_data %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") + 
@@ -132,7 +226,8 @@ names(sc_data)[5] <- "treatment_group"
 ```
 
 Predicted Synthetic Control for post treatment
-```{r}
+
+``` r
 y_test <- summary(draws, pars="y_test")
 
 sc_post <- tibble(y_test[[1]][,1])
@@ -141,7 +236,13 @@ lower <- y_test[[1]][,4]
 upper <- y_test[[1]][,8]
 
 sc_post <- sc_post %>% bind_cols(lower, upper)
+```
 
+    ## New names:
+    ## * NA -> ...2
+    ## * NA -> ...3
+
+``` r
 sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
 
 names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
@@ -150,8 +251,10 @@ names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
 #gray is 95% CI 
 ```
 
-Make treatment data for post period: this code only works if number of post treatment periods=number pre treatment periods
-```{r hierarchy-post-period}
+Make treatment data for post period: this code only works if number of
+post treatment periods=number pre treatment periods
+
+``` r
 y_post <- y_train + 800
 y_post <- y_post[1:b1_data$N_test]
 
@@ -167,4 +270,4 @@ total_sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper),
   labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train) 
 ```
 
-
+![](../Figures/bscm/hierarchy-post-period-1.png)<!-- -->
