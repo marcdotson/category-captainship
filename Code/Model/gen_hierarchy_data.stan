@@ -19,6 +19,9 @@ generated quantities {
   vector[p] beta;          //vector of weights for control stores
   vector[K] theta;         //effect of store level covariates
   vector[N_train] y_train; //Treated unit in the pre-treatment periods
+  vector[N_test] y_post; //Treated unit data in the post period, created below
+  real delta_0; //intercept treatment effect
+  real delta;  //treatment slope effect
   real beta_0; //intercept 
   real<lower=0> sigma;     //variance of the beta equation
   real<lower=0> epsilon;     //variance of the likelihood equation
@@ -36,7 +39,14 @@ generated quantities {
   epsilon = normal_rng(0, 5);
   beta_0 = normal_rng(0, 5);
   for (n in 1:N_train) {
-    y_train[n] = normal_rng(beta_0 + X_train[n,]*beta, epsilon); 
+    y_train[n] = normal_rng(beta_0 + X_train[n,]*beta, epsilon); //create treated unit in pre period
+    }
+    
+    delta_0=normal_rng(0,5);
+    delta=normal_rng(0,5);
+    
+    for(i in 1:N_test){
+      y_post[i] = delta_0 + delta*y_train[i]; //create treated unit sales in post period, intercept and slope effect 
     }
 
 }

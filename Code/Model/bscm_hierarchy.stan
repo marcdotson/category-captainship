@@ -12,6 +12,7 @@ data{
   real y_train[N_train]; //Treated unit in the pre-treatment periods
   matrix[N_train, p] X_train; //Control unit matrix in the pre-treatment
   matrix[N_test, p] X_test; //Control unit matrix in the post-treatment
+  vector[N_test] y_post; //Treated unit data in the post period
   matrix[K, p] Z;  //control store covariates 
 }
 
@@ -52,13 +53,20 @@ generated quantities{
   vector[N_train] y_fit; //Fitted synthetic control unit in the pre-treatment
   vector[N_test] y_test; //Predicted synthetic control unit in the post-treatment
   vector[N_train] log_lik; //Log-likelihood
+  vector[N_test] alpha;
   y_fit = beta_0 + X_train * beta;
 
   for(i in 1:N_test){
-  y_test[i] = normal_rng(beta_0 + X_test[i,] * beta, sigma);
+  y_test[i] = normal_rng(beta_0 + X_test[i,] * beta, sigma); //create predicted SC in post treatment period 
     }
 
   for (t in 1:N_train) {
-  log_lik[t] = normal_lpdf(y_train[t] | y_fit[t], sigma);
+  log_lik[t] = normal_lpdf(y_train[t] | y_fit[t], sigma); //how well does the SC match actual data pre treatment 
     }
+    
+  //find treatment effect: alpha for each post period unit (weeks)
+  for (i in 1:N_test) {
+    alpha[i] = y_post[i] - y_test[i]; 
+  }
+  
 }

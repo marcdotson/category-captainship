@@ -5,7 +5,7 @@ date: "2/11/2022"
 output: github_document
 ---
 
-The purpose of this file is to build off of `02_bscm-intercept`, by adding a hierarchy to the Betas. NO HORESHOE PRIOR AS OF 2/22/22 
+The purpose of this file is to build off of `02_bscm-intercept`, by adding a hierarchy to the Betas. NO HORESHOE PRIOR AS OF 3/11/22 
 
 ```{r opts, echo=FALSE}
 library(tidyverse)
@@ -26,9 +26,9 @@ knitr::opts_chunk$set(
 Make synthetic data: values picked from simulation studies done in Gupta et al.
 ```{r}
 N_train=N_test=80
-p=5
-K=3
-mu=c(15, 35, 10, 20, 30) #must be same length as p
+p=5                     #num control stores
+K=3                     #num of store covariates in beta equation 
+mu=c(15, 35, 10, 20, 30) #must be same length as p, mean sales for each store
 
 #X_train, X_test, Z and stan will make the rest
 X_train <- matrix(NA, nrow = N_train, ncol = p)       #control unit matrix in pre treatment
@@ -59,21 +59,22 @@ sim_data <- stan(
 )
 
 #extract values
-sim_beta <- extract(sim_data)$beta
-sim_theta <- extract(sim_data)$theta
-sim_ytrain <- extract(sim_data)$y_train
-sim_beta0 <- extract(sim_data)$beta_0
+sim_beta <- extract(sim_data)$beta       #weights for control stores 
+sim_theta <- extract(sim_data)$theta     #effect of store covariates on weights (beta)
+sim_ytrain <- extract(sim_data)$y_train  #treat unit in per period
+sim_beta0 <- extract(sim_data)$beta_0    #intercept in y 
 sim_sigma <- extract(sim_data)$sigma
 sim_epsilon <- extract(sim_data)$epsilon
+sim_ypost <- extract(sim_data)$y_post  #treat unit in post period
 
 #put data in list for stan model 
-b1_data <- list(N_train=N_train, N_test=N_test, p=p, K=K, X_train=X_train, X_test=X_test, Z=Z, beta=sim_beta, theta=sim_theta, y_train=as.vector(sim_ytrain), beta_0=sim_beta0, sigma=sim_sigma, epsilon=sim_epsilon)
+b1_data <- list(N_train=N_train, N_test=N_test, p=p, K=K, X_train=X_train, X_test=X_test, Z=Z, beta=sim_beta, theta=sim_theta, y_train=as.vector(sim_ytrain), beta_0=sim_beta0, sigma=sim_sigma, epsilon=sim_epsilon, y_post=as.vector(sim_ypost))
 ```
 
 
 ###### MODEL: CENTERED PARAMETERIZATION ########
 
-Run model using `bcsm_hierarchy.stan`. This model tries to recreate the model according to the syntax in the paper and the commented out code in the web appendix, we add a new hierarchical prior for Beta. No divergent transitions when horsehoe prior is not present. 
+Run model using `bcsm_hierarchy.stan`. This model tries to recreate the model according to the syntax in the paper and the commented out code in the web appendix, we add a new hierarchical prior for Beta instead of horseshoe prior currently. No divergent transitions when horseshoe prior is not present. The weights (beta) are no a function of store characteristics (Z). the treatment effect (alpha) is the difference between Y_treat_post - Y_synth_control. 
 
 ```{r}
 b1_model <- stan_model(file = here::here("Code", "Model", "bscm_hierarchy.stan"))
@@ -152,8 +153,7 @@ names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
 
 Make treatment data for post period: this code only works if number of post treatment periods=number pre treatment periods
 ```{r hierarchy-post-period}
-y_post <- y_train + 800
-y_post <- y_post[1:b1_data$N_test]
+y_post <- b1_data$y_post
 
 y_post <- as_tibble(y_post) %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
 
@@ -165,6 +165,21 @@ total_sc_data <- sc_data %>% bind_rows(sc_post)
 
 total_sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") +
   labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train) 
+```
+Check treatment effect: alpha=Y_post_treat - Y_synth_control 
+```{r}
+summary(draws, pars="alpha")[1]
+
+alpha_mean <- as_tibble(summary(draws, pars="alpha")[[1]][,1])
+alpha_lower <- as_tibble(summary(draws, pars="alpha")[[1]][,4])
+alpha_upper <- as_tibble(summary(draws, pars="alpha")[[1]][,8])
+
+alpha <- cbind(alpha_mean, alpha_lower, alpha_upper)
+names(alpha) <-c("mean", "lower", "upper")
+
+alpha <- alpha %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
+
+alpha %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=mean), color="darkred") + labs(x="Week", y="Value") + ggtitle("Treatment effect over time: Y_treat_post - Y_synth_control") + geom_hline(yintercept=0)
 ```
 
 
