@@ -16,9 +16,9 @@ data{
 
 // The parameters accepted by the model. 
 parameters{
-  real alpha; //treatment effect 
   //real<lower=0> sigma; //variance for alpha equation
   real<lower=0> epsilon; //variance for likelihood
+  vector[TT] alpha; //treatment effect 
   vector[S] beta; //synthetic control weights
   //Hyperparameters prior
   //vector[K] theta;        //hierarchical effect 
@@ -27,7 +27,7 @@ parameters{
 
 transformed parameters{
   vector[TT] X_beta_alpha; //likelihood equation 
-  X_beta_alpha = beta_0 + X*beta + alpha*D;
+  X_beta_alpha = beta_0 + X*beta + alpha' *D;
 }
 
 // The model to be estimated. 
@@ -38,7 +38,7 @@ model{
   //theta ~ normal(0, 5); 
   beta_0 ~ normal(0,10);
   beta ~ normal(0,10); 
-  alpha ~ normal(0, 10);
+  //alpha ~ normal(0, 5);
   //alpha ~ normal(theta'*Z, sigma);
   Y ~ normal(X_beta_alpha, epsilon);
 }

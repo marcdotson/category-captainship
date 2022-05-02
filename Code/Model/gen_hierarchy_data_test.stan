@@ -7,6 +7,7 @@
 data{
   int TT; //Number of total time periods
   int S; //Number of control stores
+  int I; //time of intervetion 
   //int K; //number of treated store covariates
   vector[TT] D; //treatment indicator for every time period 
   matrix[TT, S] X; //Control unit store observations in every time period
@@ -15,7 +16,7 @@ data{
 
 //gen simluated data
 generated quantities {
-  real alpha; //treatment effect 
+  vector[TT] alpha; //treatment effect 
   vector[S] beta;          //vector of weights for control stores
   //vector[K] theta;         //effect of store level covariates
   vector[TT] Y; //Treated unit sales in every time period
@@ -35,10 +36,11 @@ generated quantities {
   
   epsilon = normal_rng(0, 10);
   beta_0 = normal_rng(0, 10);
-  alpha=normal_rng(0,10); 
+  for(a in 1:I) {alpha[a]=0;}
+  for(a in (I+1):TT) {alpha[a]=normal_rng(0,5);}
   for(s in 1:S) {beta[s]=normal_rng(0,10);}
   for (t in 1:TT) {
-    Y[t] = normal_rng(beta_0 + X[t,]*beta + alpha*D[t], epsilon); //create treated unit in all time periods
+    Y[t] = normal_rng(beta_0 + X[t,]*beta + alpha[t]*D[t], epsilon); //create treated unit in all time periods
     }
     //delta_0=normal_rng(0,5);
     //delta=normal_rng(0,5);
