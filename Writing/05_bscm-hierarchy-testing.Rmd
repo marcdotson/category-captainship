@@ -1,0 +1,180 @@
+---
+title: "Synthetic Control Model Testing"
+author: "Morgan and Cameron Bale"
+date: "4/29/2022"
+output: github_document
+---
+
+The purpose of this file is to test how including the treatment effect (alpha) influences the model
+
+```{r opts, echo=FALSE}
+library(tidyverse)
+library(rstan)
+library(bayesplot)
+library(gtools)
+
+rstan_options(auto_write=TRUE, disable_march_warning=TRUE) # writes a compiled Stan program to the disk to avoid recompiling
+options(mc.cores = parallel::detectCores()-1) # uses multiple cores for stan
+
+knitr::opts_chunk$set(
+  fig.path = "../Figures/bscm/"
+)
+```
+
+##### DATA #######
+
+Make synthetic data: values picked from simulation studies done in Gupta et al.
+```{r}
+TT=80
+S=5                     #num control stores
+#K=3                     #num of store covariates in alpha equation 
+
+#X is the sales for the control stores in all time periods
+X <- matrix(rnorm(TT*S), nrow = TT, ncol = S)  
+
+D <- rep(0:1, each=TT/2)
+  
+#Z <- matrix(rnorm(K*p), nrow=K, ncol=p)
+
+#put in list for stan
+sim_values <- list(TT=TT, S=S, X=X, D=D)
+```
+
+Generate data in stan
+```{r}
+sim_data <- stan(
+  #file = here::here("Code", "Model", "gen_hierarchy_data_test.stan"),
+  file="../Code/Model/gen_hierarchy_data_test.stan",
+  data = sim_values,
+  iter = 1,
+  chains = 1,
+  seed = 2020,
+  algorithm = "Fixed_param"
+)
+
+#extract values
+sim_beta <- extract(sim_data)$beta       #weights for control stores 
+#sim_theta <- extract(sim_data)$theta     #effect of store covariates on alpha
+sim_Y <- extract(sim_data)$Y #treat unit in all time periods
+sim_beta0 <- extract(sim_data)$beta_0    #intercept in y 
+#sim_sigma <- extract(sim_data)$sigma
+sim_epsilon <- extract(sim_data)$epsilon
+sim_alpha <- extract(sim_data)$alpha  #treatment effect
+
+#put data in list for stan model 
+b1_data <- list(TT=TT, S=S, X=X, beta=sim_beta, Y=as.vector(sim_Y), beta_0=sim_beta0, epsilon=sim_epsilon, alpha=sim_alpha, D=D)
+```
+
+
+###### MODEL: CENTERED PARAMETERIZATION ########
+
+Run model using `bcsm_hierarchy.stan`. This model tries to recreate the model according to the syntax in the paper and the commented out code in the web appendix, we add a new hierarchical prior for Beta instead of horseshoe prior currently. No divergent transitions when horseshoe prior is not present. The weights (beta) are no a function of store characteristics (Z). the treatment effect (alpha) is the difference between Y_treat_post - Y_synth_control. 
+
+```{r}
+#b1_model <- stan_model(file = here::here("Code", "Model", "bscm_hierarchy.stan"))
+b1_model <- stan_model(file="../Code/Model/bscm_hierarchy_testing.stan")
+#print(b1_model)
+
+draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
+```
+
+###### RESULTS: CENTERED PARAMETERIZATION ######
+
+Check results: the traceplots look good, the sampler recovers the beta and theta parameters. The synthetic control matches the treatment group in the pre period. 
+
+```{r hierarchy-recovery}
+#traceplots
+traceplot(draws, pars="beta")
+traceplot(draws, pars="beta_0")
+#traceplot(draws, pars="sigma")
+#traceplot(draws, pars="theta")
+traceplot(draws, pars="epsilon")
+traceplot(draws, pars="alpha")
+
+mcmc_recover_hist(As.mcmc.list(draws, pars="beta"), true=as.vector(t(b1_data$beta)))
+mcmc_recover_hist(As.mcmc.list(draws, pars="beta_0"), true=as.vector(t(b1_data$beta_0)))
+mcmc_recover_hist(As.mcmc.list(draws, pars="alpha"), true=b1_data$alpha)
+#mcmc_recover_hist(As.mcmc.list(draws, pars="theta"), true=as.vector(t(b1_data$theta)))
+```
+
+Fitted Synthetic Control for pre treatment
+
+```{r}
+Y_hat <- summary(draws, pars="Y_hat")
+yhat <- tibble(Y_hat[[1]][,1])
+
+lower <- Y_hat[[1]][,4]
+upper <- Y_hat[[1]][,8]
+
+yhat <- yhat %>% bind_cols(lower, upper, b1_data$Y)
+
+yhat <- yhat %>% mutate(week=rep(1:b1_data$TT))
+
+names(yhat) <- c("yhat","lower", "upper", "Y", "week")
+
+yhat %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yhat, color="Predicted Y"), linetype="dashed") +geom_line(aes(y=Y, color="True Y")) + ggtitle("Predicted Y values compared to actual Y values") + labs(x="Week", y="Control Observations") + geom_vline(xintercept=(b1_data$TT)/2) + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Predicted Y", "True Y"), values=c("blue", "red"))
+```
+
+Treated unit in the pre treatment
+```{r hierarchy-pre-treatment}
+y_train <- b1_data$y_train
+
+sc_data <- sc_pre %>% bind_cols(y_train)
+
+names(sc_data)[5] <- "treatment_group"
+
+#sc_data %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") + 
+  #labs(x="Week", y="Pre Treatment Value") + ggtitle("Pre Treatment Synthetic Control (blue) vs Treatment Group (red)") 
+```
+
+Predicted Synthetic Control for post treatment
+```{r}
+y_test <- summary(draws, pars="y_test")
+
+sc_post <- tibble(y_test[[1]][,1])
+
+lower <- y_test[[1]][,4]
+upper <- y_test[[1]][,8]
+
+sc_post <- sc_post %>% bind_cols(lower, upper)
+
+sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
+
+names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
+
+#sc_post %>% ggplot(aes(x=week, y=synthetic_control)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line() + ggtitle("Synthetic Control in the Post Treatment") + labs(x="Week", y="Control Value")
+#gray is 95% CI 
+```
+
+Make treatment data for post period: this code only works if number of post treatment periods=number pre treatment periods
+```{r hierarchy-post-period}
+y_post <- b1_data$y_post
+
+y_post <- as_tibble(y_post) %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
+
+sc_post <- sc_post %>% left_join(y_post, by="week")
+
+names(sc_post)[5] <- "treatment_group"
+
+total_sc_data <- sc_data %>% bind_rows(sc_post)
+
+total_sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=treatment_group), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") +
+  labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train) 
+```
+Check treatment effect: alpha=Y_post_treat - Y_synth_control 
+```{r}
+summary(draws, pars="alpha")[1]
+
+alpha_mean <- as_tibble(summary(draws, pars="alpha")[[1]][,1])
+alpha_lower <- as_tibble(summary(draws, pars="alpha")[[1]][,4])
+alpha_upper <- as_tibble(summary(draws, pars="alpha")[[1]][,8])
+
+alpha <- cbind(alpha_mean, alpha_lower, alpha_upper)
+names(alpha) <-c("mean", "lower", "upper")
+
+alpha <- alpha %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
+
+alpha %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=mean), color="darkred") + labs(x="Week", y="Value") + ggtitle("Treatment effect over time: Y_treat_post - Y_synth_control") + geom_hline(yintercept=0)
+```
+
+
