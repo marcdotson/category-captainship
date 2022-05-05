@@ -1,49 +1,46 @@
 //
 // This file creates synthetic data to use with bscm_hierarchy_testing model
 // Morgan Bale
-// April 2022
+// May 2022
 
 // Data
 data{
   int TT; //Number of total time periods
-  int S; //Number of control stores
-  int I; //time of intervetion 
-  //int K; //number of treated store covariates
-  vector[TT] D; //treatment indicator for every time period 
-  matrix[TT, S] X; //Control unit store observations in every time period
-  //matrix[K, S] Z;  //control store covariates 
+  int C; //Number of control stores
+  int N; //number of treated stores 
+  int K; //number of treated store covariates
+  matrix[N, TT] D; //treatment indicator for every time period for every treated store 
+  matrix[TT, C] X; //Control unit store observations in every time period
+  matrix[K, N] Z;  //treated store covariates 
 }
 
 //gen simluated data
 generated quantities {
-  vector[TT] alpha; //treatment effect 
-  vector[S] beta;          //vector of weights for control stores
-  //vector[K] theta;         //effect of store level covariates
-  vector[TT] Y; //Treated unit sales in every time period
-  real beta_0; //intercept 
-  //real<lower=0> sigma;     //variance of the beta equation
+  vector[N] alpha;          //treatment effect for each treated store
+  vector[K] theta;         //effect of store level covariates
+  matrix[N,C] beta;          //vector of weights for control stores for each treated store
+  matrix[N, TT] Y;            //Treated unit sales in every time period
+  real beta_0;              //intercept 
+  real<lower=0> sigma;     //variance of the beta equation
   real<lower=0> epsilon;     //variance of the likelihood equation
   
-  //for (k in 1:K) {
-    //theta[k] = normal_rng(0, 5);
-  //}
+  for (k in 1:K) {
+    theta[k] = normal_rng(0, 5);
+  }
   
-  //sigma=normal_rng(0,5); 
-  
-  //for (s in 1:S) {
-    //alpha[s] = normal_rng(theta'*Z[,pp], sigma);
-  //}
-  
-  epsilon = normal_rng(0, 10);
+  sigma=inv_gamma_rng(2,1); 
+  epsilon = inv_gamma_rng(2,1);
   beta_0 = normal_rng(0, 10);
-  for(a in 1:I) {alpha[a]=0;}
-  for(a in (I+1):TT) {alpha[a]=normal_rng(0,5);}
-  for(s in 1:S) {beta[s]=normal_rng(0,10);}
-  for (t in 1:TT) {
-    Y[t] = normal_rng(beta_0 + X[t,]*beta + alpha[t]*D[t], epsilon); //create treated unit in all time periods
+  for(n in 1:N) {
+    alpha[n]=normal_rng(theta'*Z[,n], sigma);
+    for(c in 1:C) {
+      beta[n,c]=normal_rng(0,10);
     }
-    //delta_0=normal_rng(0,5);
-    //delta=normal_rng(0,5);
+  }
+  for (n in 1:N) {
+    for(t in 1:TT) {
+    Y[n,t] = normal_rng(beta_0 + X[t,]*beta[n,]' + alpha[n]*D[n,t], epsilon); //create treated unit in all time periods
+    }}
 }
 
 

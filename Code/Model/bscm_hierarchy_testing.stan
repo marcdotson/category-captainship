@@ -1,56 +1,58 @@
 //
 // This model is adapted from Gupta's paper
 // Morgan Bale
-// Feb 2022
+// May 2022
 
 // Data
 data{
   int TT; //Number of total time periods
-  int S; //Number of control stores
-  //int K; //number of treated store covariates
-  vector[TT] Y; //Treated unit sales in every time period
-  vector[TT] D; //treatment indicator for every time period 
-  matrix[TT, S] X; //Control unit store observations in every time period
-  //matrix[K, S] Z;  //control store covariates 
+  int C; //Number of control stores
+  int N; //number of treated stores 
+  int K; //number of treated store covariates
+  matrix[N, TT] D; //treatment indicator for every time period for every treated store 
+  matrix[TT, C] X; //Control unit store observations in every time period
+  matrix[K, N] Z;  //treated store covariates 
+  matrix[N, TT] Y; //Treated unit sales in every time period
 }
 
 // The parameters accepted by the model. 
 parameters{
-  //real<lower=0> sigma; //variance for alpha equation
-  real<lower=0> epsilon; //variance for likelihood
-  vector[TT] alpha; //treatment effect 
-  vector[S] beta; //synthetic control weights
-  //Hyperparameters prior
-  //vector[K] theta;        //hierarchical effect 
-  real beta_0; //intercept 
+  real<lower=0> sigma;      //variance for alpha equation
+  real<lower=0> epsilon;   //variance for likelihood
+  vector[N] alpha;     //treatment effect 
+  vector[K] theta;      //hierarchical effect
+  matrix[N,C] beta;          //vector of weights for control stores for each treated store
+  real beta_0;        //intercept 
 }
 
-transformed parameters{
-  vector[TT] X_beta_alpha; //likelihood equation 
-  X_beta_alpha = beta_0 + X*beta + alpha' *D;
-}
+// transformed parameters{
+//   vector[TT] X_beta_alpha; //likelihood equation 
+//   X_beta_alpha = beta_0 + X*beta + alpha' *D;
+// }
 
 // The model to be estimated. 
 model{
   //Pre-treatment estimation
-  //sigma ~ normal(0,5);
-  epsilon ~ normal(0,10); 
-  //theta ~ normal(0, 5); 
+  sigma ~ inv_gamma(3,1);
+  epsilon ~ inv_gamma(3,1); 
+  theta ~ normal(0, 5); 
   beta_0 ~ normal(0,10);
-  beta ~ normal(0,10); 
-  //alpha ~ normal(0, 5);
-  //alpha ~ normal(theta'*Z, sigma);
-  Y ~ normal(X_beta_alpha, epsilon);
+  //beta ~ normal(0,10); 
+  alpha ~ normal(theta'*Z, sigma);
+  for (n in 1:N) {
+    beta[n,] ~ normal(0, 10);
+    for(t in 1:TT) {
+    Y[n,t] ~ normal(beta_0 + X[t,]*beta[n,]' + alpha[n]*D[n,t], epsilon); //likelihood
+    }}
 }
 
 generated quantities {
-  vector[TT] Y_hat; //predicted values 
-  vector[TT] synth_control; 
-  
-  synth_control = beta_0 + X*beta;
-  for(t in 1:TT) {
-    Y_hat[t] = normal_rng(X_beta_alpha[t], epsilon);
-  }
+  matrix[N,TT] Y_hat; //predicted values 
+
+  for (n in 1:N) {
+    for(t in 1:TT) {
+    Y_hat[n,t] = normal_rng(beta_0 + X[t,]*beta[n,]' + alpha[n]*D[n,t], epsilon); //create treated unit in all time periods
+    }}
 }
 
 // generated quantities{
