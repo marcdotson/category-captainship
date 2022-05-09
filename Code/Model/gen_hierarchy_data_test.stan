@@ -25,7 +25,7 @@ generated quantities {
   real<lower=0> epsilon;     //variance of the likelihood equation
   
   for (k in 1:K) {
-    theta[k] = normal_rng(0, 5);
+    theta[k] = normal_rng(0, 10);
   }
   
   sigma=inv_gamma_rng(2,1); 
