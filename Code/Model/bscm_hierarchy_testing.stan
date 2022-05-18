@@ -9,8 +9,8 @@ data{
   int C; //Number of control stores
   int N; //number of treated stores 
   int K; //number of treated store covariates
-  matrix[N, TT] D; //treatment indicator for every time period for every treated store 
-  matrix[TT, C] X; //Control unit store observations in every time period
+  matrix[N,TT] D; //treatment indicator for every time period for every treated store 
+  matrix[C, TT] X; //Control unit store observations in every time period
   matrix[K, N] Z;  //treated store covariates 
   matrix[N, TT] Y; //Treated unit sales in every time period
 }
@@ -25,33 +25,26 @@ parameters{
   real beta_0;        //intercept 
 }
 
-// transformed parameters{
-//   vector[TT] X_beta_alpha; //likelihood equation 
-//   X_beta_alpha = beta_0 + X*beta + alpha' *D;
-// }
-
 // The model to be estimated. 
 model{
   //Pre-treatment estimation
   sigma ~ inv_gamma(3,1);
   epsilon ~ inv_gamma(3,1); 
-  theta ~ normal(0, 5); 
-  beta_0 ~ normal(0,10);
-  //beta ~ normal(0,10); 
-  alpha ~ normal(theta'*Z, sigma);
+  theta ~ normal(0, 2); 
+  beta_0 ~ normal(0,2);
   for (n in 1:N) {
-    beta[n,] ~ normal(0, 10);
+    beta[n,] ~ normal(0, 2);
     for(t in 1:TT) {
-    Y[n,t] ~ normal(beta_0 + X[t,]*beta[n,]' + alpha[n]*D[n,t], epsilon); //likelihood
+    Y[n,t] ~ normal(beta_0 + beta[n,]*X[,t] + alpha[n]*D[n,t], epsilon); //likelihood
     }}
 }
 
 generated quantities {
-  matrix[N,TT] Y_hat; //predicted values 
+  matrix[N,TT] Y_hat; //predicted values
 
   for (n in 1:N) {
     for(t in 1:TT) {
-    Y_hat[n,t] = normal_rng(beta_0 + X[t,]*beta[n,]' + alpha[n]*D[n,t], epsilon); //create treated unit in all time periods
+    Y_hat[n,t] = normal_rng(beta_0 +  beta[n,]*X[,t] + alpha[n]*D[n,t], epsilon); //create treated unit in all time periods
     }}
 }
 
