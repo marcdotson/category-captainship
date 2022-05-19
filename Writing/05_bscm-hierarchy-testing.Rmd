@@ -1,0 +1,221 @@
+---
+title: "Synthetic Control Model Testing"
+author: "Morgan and Cameron Bale"
+date: "4/29/2022"
+output: github_document
+---
+
+The purpose of this file is to test how including the treatment effect (alpha) influences the model
+
+```{r opts, echo=FALSE, message=FALSE}
+library(tidyverse)
+library(rstan)
+library(bayesplot)
+library(gtools)
+
+rstan_options(auto_write=TRUE) # writes a compiled Stan program to the disk to avoid recompiling
+options(mc.cores = parallel::detectCores()-1) # uses multiple cores for stan
+
+knitr::opts_chunk$set(
+  fig.path = "../Figures/bscm/"
+)
+```
+
+##### DATA #######
+
+Make synthetic data
+```{r}
+TT=80
+C=20                   #num control stores --> assuming all treated stores use same control store pool 
+K=3                   #num of store covariates in alpha equation 
+N=15                   #num of treated stores 
+I=40       #week of intervention for each treated store
+
+#X is the sales for the control stores in all time periods
+X <- matrix(rexp(TT*C), nrow = TT, ncol = C)  
+
+D <- matrix(NA, nrow=N, ncol=TT)
+for(n in 1:N) {
+  zero <- rep(0, times=I)
+  one <- rep(1, times=(TT-I))
+  D[n,] <- c(zero, one)
+}
+  
+Z <- matrix(rbinom(K*N, 1, .3), nrow=K, ncol=N)
+
+#put in list for stan
+sim_values <- list(TT=TT, C=C, N=N, K=K, X=X, D=D, Z=Z)
+```
+
+Generate data in stan: the first stan model printed here is to generate synthetic data using stan to test our actual model 
+```{r, echo=FALSE}
+data_gen <- stan_model(file="../Code/Model/gen_hierarchy_data_test.stan")
+print(data_gen)
+
+sim_data <- stan(
+  #file = here::here("Code", "Model", "gen_hierarchy_data_test.stan"),
+  file="../Code/Model/gen_hierarchy_data_test.stan",
+  data = sim_values,
+  iter = 1,
+  chains = 1,
+  seed = 2020,
+  algorithm = "Fixed_param"
+)
+
+#extract values
+sim_beta <- extract(sim_data)$beta       #weights for control stores 
+sim_theta <- extract(sim_data)$theta     #effect of store covariates on alpha
+sim_Y <- extract(sim_data)$Y             #treat unit in all time periods
+sim_beta0 <- extract(sim_data)$beta_0    #intercept in y 
+sim_sigma <- extract(sim_data)$sigma     #variance in alpha equation
+sim_epsilon <- extract(sim_data)$epsilon #variance in Y equation 
+sim_alpha <- extract(sim_data)$alpha  #treatment effect
+
+#put data in list for stan model 
+b1_data <- list(TT=TT, C=C, N=N, X=X, K=K, Z=Z, D=D, Y=sim_Y[1,,], beta_0=sim_beta0, beta=sim_beta[1,,], epsilon=sim_epsilon, alpha=sim_alpha, sigma=sim_sigma, theta=sim_theta)
+```
+
+##### MODEL #####
+This model uses a synthetic control combined with heterogeneous treatment effects to estimate sales for treated stores. The model is restricted to meet the synthetic control requirements in the pre period, so that the difference between the synthetic control and actual sales in the post period can be attributed to alpha, our treatment effect. alpha is described by store/category characteristics making theta our effect of those characteristics on the average treatment effect alpha. Note: alpha is an average treatment effect across all post period weeks. Each treated store gets its own weights determined from the same sample of control stores. In this example, we have 15 treated stores and 20 control stores. So each treated store gets its own synthetic control from the 20 control stores. This form of the model would allow us to still use horseshoe priors on beta, but those are not implemented here yet. 
+```{r, echo=FALSE}
+#b1_model <- stan_model(file = here::here("Code", "Model", "bscm_hierarchy.stan"))
+b1_model <- stan_model(file="../Code/Model/bscm_hierarchy_testing.stan")
+print(b1_model)
+
+draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
+```
+
+###### RESULTS ######
+
+Check results: the traceplots look good, the sampler recovers the beta and theta parameters. The synthetic control matches the treatment group in the pre period. 
+```{r hierarchy-recovery, echo=FALSE, message=FALSE}
+#traceplots
+traceplot(draws, pars=c("beta[1,1]", "beta[2,1]", "beta[3,1]", "beta[4,1]", "beta[1,2]", "beta[2,2]", "beta[3,2]", "beta[4,2]")) #N, C
+traceplot(draws, pars="beta_0")
+traceplot(draws, pars="sigma")
+traceplot(draws, pars="theta")
+traceplot(draws, pars="epsilon")
+traceplot(draws, pars=c("alpha[1]", "alpha[2]", "alpha[3]", "alpha[4]"))
+
+mcmc_recover_hist(As.mcmc.list(draws, pars="beta[1,1]"), true=b1_data$beta[1,1])
+mcmc_recover_hist(As.mcmc.list(draws, pars="beta[1,2]"), true=b1_data$beta[1,2])
+mcmc_recover_hist(As.mcmc.list(draws, pars="beta_0"), true=b1_data$beta_0)
+mcmc_recover_hist(As.mcmc.list(draws, pars="alpha[1]"), true=b1_data$alpha[1])
+mcmc_recover_hist(As.mcmc.list(draws, pars="alpha[2]"), true=b1_data$alpha[2])
+mcmc_recover_hist(As.mcmc.list(draws, pars="alpha[3]"), true=b1_data$alpha[3])
+mcmc_recover_hist(As.mcmc.list(draws, pars="theta"), true=as.vector(t(b1_data$theta)))
+```
+
+Predicted Y (yhat) v Y: yhat is created in the generated quantities section of `bscm_hierarchy_testing.stan`  
+```{r, echo=FALSE, message=FALSE}
+Y_hat <- summary(draws, pars="Y_hat")
+yhat <- tibble(Y_hat[[1]][,1])
+
+lower <- Y_hat[[1]][,4]
+upper <- Y_hat[[1]][,8]
+
+yhat <- yhat %>% bind_cols(lower, upper)
+
+yhat <- yhat %>% mutate(treat_store=rep(1:b1_data$N, each=b1_data$TT), week=rep(1:b1_data$TT, times=b1_data$N))
+
+names(yhat) <- c("yhat","lower", "upper", "treat_store", "week")
+
+trueY <- as.data.frame(t(b1_data$Y))
+names(trueY) <- c("store1", "store2", "store3")
+trueY <- stack(trueY)
+trueY <- trueY %>% mutate(treat_store=rep(1:b1_data$N, each=b1_data$TT))
+
+yhat <- bind_cols(yhat, trueY$values)
+names(yhat)[6] <- "trueY"
+
+yhat %>% filter(treat_store==1) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yhat, color="Predicted Y"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Predicted Y values compared to actual Y values, store 1") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Predicted Y", "True Y"), values=c("blue", "red")) 
+
+yhat %>% filter(treat_store==2) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yhat, color="Predicted Y"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Predicted Y values compared to actual Y values, store 2") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Predicted Y", "True Y"), values=c("blue", "red")) 
+
+yhat %>% filter(treat_store==3) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yhat, color="Predicted Y"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Predicted Y values compared to actual Y values, store 3") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Predicted Y", "True Y"), values=c("blue", "red")) 
+```
+
+Synthetic control v Y: compare the synthetic control for selected treated stores to the actual sales (Y) for those treated stores 
+```{r hierarchy-pre-treatment, echo=FALSE, message=FALSE}
+#construct the synthetic control 
+beta0 <- summary(draws, pars="beta_0")
+beta_0 <- tibble(beta0[[1]][,1])
+
+beta_data <- summary(draws, pars="beta")
+beta <- as.matrix(beta_data[[1]][,1])
+beta_mat <- matrix(beta, nrow=b1_data$N, ncol=b1_data$C, byrow=TRUE)
+
+sc <- matrix(NA, nrow=b1_data$N, ncol=b1_data$TT)
+for(n in 1:N) {
+  sc[n,] = as.matrix(beta_0)[1,1] + beta_mat[n,]%*%t(as.matrix(X))  
+}
+
+sc_data  <- as.data.frame(t(sc))
+sc_data <- stack(sc_data)
+
+sc_data  <- sc_data  %>% mutate(week=rep(1:b1_data$TT, times=b1_data$N), treat_store=rep(1:b1_data$N, each=b1_data$TT))
+
+sc_data %>% ggplot(aes(x=week, y=values, col=as.factor(treat_store))) + geom_line() + ggtitle("SC for each treated store") + facet_wrap(~treat_store)
+
+Y_data <- trueY %>% mutate(week=rep(1:b1_data$TT, times=b1_data$N))
+names(sc_data)[1] <- "sc"
+names(Y_data)[1] <- "y"
+
+sc_data <- sc_data %>% bind_cols(Y_data$y)
+names(sc_data)[5] <- "y"
+
+sc_data %>% filter(treat_store==1) %>% ggplot(aes(x=week)) + geom_line(aes(y=y, col=as.factor(treat_store))) + geom_line(aes(y=sc, col=as.factor(treat_store)), linetype="dashed") + ggtitle(paste("SC versus actual treated sales, store 1, alpha is ", b1_data$alpha[1])) + geom_vline(xintercept=I)
+
+sc_data %>% filter(treat_store==2) %>% ggplot(aes(x=week)) + geom_line(aes(y=y, col=as.factor(treat_store))) + geom_line(aes(y=sc, col=as.factor(treat_store)), linetype="dashed") + ggtitle(paste("SC versus actual treated sales, store 2, alpha is ", b1_data$alpha[2])) + geom_vline(xintercept=I)
+
+sc_data %>% filter(treat_store==5) %>% ggplot(aes(x=week)) + geom_line(aes(y=y, col=as.factor(treat_store))) + geom_line(aes(y=sc, col=as.factor(treat_store)), linetype="dashed") + ggtitle(paste("SC versus actual treated sales, store 5, alpha is ", b1_data$alpha[5])) + geom_vline(xintercept=I)
+
+sc_data %>% filter(treat_store==12) %>% ggplot(aes(x=week)) + geom_line(aes(y=y, col=as.factor(treat_store))) + geom_line(aes(y=sc, col=as.factor(treat_store)), linetype="dashed") + ggtitle(paste("SC versus actual treated sales, store 12, alpha is ", b1_data$alpha[12])) + geom_vline(xintercept=I)
+
+#sc_data %>% ggplot(aes(x=week,)) + geom_line(aes(y=y, col=as.factor(treat_store))) + geom_line(aes(y=sc, col=as.factor(treat_store)), linetype="dashed") + ggtitle("SC versus actual treated sales") + facet_wrap(~treat_store)
+```
+
+Compare true alphas to estimated alphas:
+
+```{r, echo=FALSE}
+alpha_est <- summary(draws, pars="alpha")$summary[,"mean"]
+plot(x=t(b1_data$alpha), y=alpha_est, xlab="True treatment effect", ylab="Posterior Mean", main="alpha", 
+     col=c("red", "blue", "green", "purple"), pch=19)
+abline(a=0,b=1)
+```
+Test selected:
+
+Compare estimated average values for alpha to the true alpha in treated store 1 
+```{r}
+sc_data <- sc_data %>% mutate(alpha=y-sc)
+
+#this is the treatment effect (alpha) in store 1 in the PRE PERIOD. we expect this to be 0, anything above 0 is noise? 
+store1_pre <- sc_data %>% filter(treat_store==1, week<(I[1]+1)) 
+mean(store1_pre$alpha)
+
+#this is the treatment effect (alpha) in store 1 in the POST period. we expect this to be equal to the true alpha 
+store1_post <- sc_data %>% filter(treat_store==1, week>I[1]) 
+mean(store1_post$alpha)
+
+#compare to true alpha for store 1
+sim_alpha[1]
+```
+
+Compare estimated average values for alpha to the true alpha in treated store 5
+```{r}
+#this is the treatment effect (alpha) in store 5 in the PRE PERIOD. we expect this to be 0, anything above 0 is noise? 
+store1_pre <- sc_data %>% filter(treat_store==5, week<(I[1]+1)) 
+mean(store1_pre$alpha)
+
+#this is the treatment effect (alpha) in store 5 in the POST period. we expect this to be equal to the true alpha
+store1_post <- sc_data %>% filter(treat_store==5, week>I[1]) 
+mean(store1_post$alpha)
+
+#compare to true alpha for store 5
+sim_alpha[5]
+```
+
+
+
+
+
