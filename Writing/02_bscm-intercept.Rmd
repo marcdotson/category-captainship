@@ -259,8 +259,149 @@ total_sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper),
   labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train) 
 ```
 
+#### REAL DATA EXAMPLE ####
+Test parameterization 2 with Minnesota Cereal
+Target reset date: Jan 1st 2012, Data years: 2011-2012, CC: General Mills, Validator: Kellogg, State: MN, Treated Retailer: 221
 
+Load and clean data: there are 57 control stores and 43 treated stores. 
+```{r}
+load("../Data/mn_cereal_clean.RData")
+#select columns we want
+mn_cereal <- mn_cereal %>% dplyr::select(store_code_uc, upc, week_end, units, price, year, upc_ver_uc, parent_code, retailer_code, sales, manufacturer)
+```
 
+Create higher level store characteristics
+```{r}
+#standardized number of UPCs --> num_UPC/max(num_UPC)
+num_upc <- mn_cereal %>% dplyr::select(store_code_uc, upc) %>% distinct() %>% group_by(store_code_uc) %>% summarise(n=n()) %>% mutate(num_upcs=n/max(n)) #some variation, not a ton...
 
+mn_cereal <- mn_cereal %>% left_join(num_upc, by="store_code_uc")
 
+#variation in prices --> max(price) - min(price) for each store 
+price_variation <- mn_cereal %>% dplyr::select(store_code_uc, price) %>% distinct() %>% group_by(store_code_uc) %>% summarise(max_price=max(price), min_price=min(price)) %>% mutate(price_diff=max_price-min_price)
+
+mn_cereal <- mn_cereal %>% left_join(price_variation, by="store_code_uc")
+```
+
+There are 53 weeks in 2011 and 52 weeks in 2012. CC is implemented around Jan 1st, 2012. We will use 2012-01-07 as the first post treatment period. Find distinct weeks and order by date. Make treatment and post variable. 
+```{r}
+weeks <- mn_cereal %>% dplyr::select(week_end) %>% distinct()
+
+weeks <- weeks[order(as.Date(weeks$week_end, format="%d/%m/%Y")),]
+
+weeks <- weeks %>% mutate(week_num=rep(1:nrow(weeks)))
+
+mn_cereal <- mn_cereal %>% left_join(weeks, by="week_end")
+
+mn_cereal <- mn_cereal %>% mutate(treat=if_else(retailer_code==221, 1, 0))
+
+#separate data out by CC, validator, PL, other and treated versus control 
+cc_treat <- mn_cereal %>% filter(manufacturer=="GM", treat==1)
+cc_control <- mn_cereal %>% filter(manufacturer=="GM", treat==0)
+
+pl_treat <- mn_cereal %>% filter(manufacturer=="PL", treat==1)
+pl_control <- mn_cereal %>% filter(manufacturer=="PL", treat==0)
+
+#aggregate sales to store level instead of UPC level 
+pl_control_sales <- pl_control %>% group_by(store_code_uc, week_num) %>% summarise(total_sales=sum(sales)) #5985 obs, 105 weeks for each of 57 stores
+
+#add store numbers
+treat_stores <- unique(pl_treat$store_code_uc)
+pl_treat <- pl_treat %>% mutate(store_num=0)
+k=1
+for(i in treat_stores) {
+  pl_treat <- pl_treat %>% mutate(store_num=if_else(store_code_uc==i, k, store_num))
+  k=k+1
+}
+
+#aggregate sales to store level instead of UPC level 
+pl_treat_sales <- pl_treat %>% group_by(store_num, week_num) %>% summarise(total_sales=sum(sales)) #4515 obs, 105 weeks for each of 43 stores
+
+#try sample of treated stores so it will run faster 
+pl_treat_sales <- pl_treat_sales %>% filter(store_num %in% c(1:10))
+```
+
+Collect data & test with PL first 
+```{r}
+N_train <- 53
+N_test <- nrow(weeks) - N_train
+p <- length(unique(pl_control_sales$store_code_uc))
+
+#treated unit in the pre treatment
+y_train  <- pl_treat_sales %>% filter(week_num %in% c(1:N_train), store_num==2) %>% pull(total_sales)  
+
+y_train <- log(y_train)
+
+X <- matrix(NA, nrow=nrow(weeks), ncol=p)
+control_stores <- unique(pl_control_sales$store_code_uc)
+k=1
+for(c in control_stores) {
+    X[,k] <- pl_control_sales %>% filter(store_code_uc==c) %>% pull(total_sales)
+    k=k+1
+}
+
+#try log sales
+X=log(X)
+
+X_train <- X[1:N_train,]
+X_test <- X[(N_train+1):nrow(weeks),]
+
+b1_data <- list(p=p, N_test=N_test, N_train=N_train, y_train=y_train, X_train=X_train, X_test=X_test) #data list for stan
+```
+
+There are many divergent transitions 
+```{r, echo=FALSE}
+#b1_model <- stan_model(file = here::here("Code", "Model", "bscm_hierarchy.stan"))
+b1_model <- stan_model(file="../Code/Model/bscm_b1_intercept_p2.stan")
+print(b1_model)
+
+draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
+#save(draws, file="../Data/mn_cereal_draws.RData")
+```
+
+Check results
+```{r hierarchy-recovery, echo=FALSE, message=FALSE}
+#traceplots
+traceplot(draws, pars=c("beta[1]", "beta[2]", "beta[3]", "beta[4]", "beta[5]", "beta[6]", "beta[7]", "beta[8]", "beta[9]", "beta[10]")) #length p
+traceplot(draws, pars="beta_0")
+traceplot(draws, pars="sigma")
+traceplot(draws, pars=c("lambda[1]", "lambda[2]", "lambda[3]", "lambda[4]", "lambda[5]", "lambda[6]", "lambda[7]", "lambda[8]", "lambda[9]", "lambda[10]"))
+traceplot(draws, pars="tau")
+```
+
+Look at synthetic control vs Y 
+```{r intercept-post-period-p2}
+#pre sc
+y_fit <- summary(draws, pars="y_fit")
+sc_pre <- tibble(y_fit[[1]][,1])
+lower <- y_fit[[1]][,4]
+upper <- y_fit[[1]][,8]
+
+sc_pre <- sc_pre %>% bind_cols(lower, upper)
+
+sc_pre <- sc_pre %>% mutate(week=rep(1:b1_data$N_train))
+names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
+
+#post sc
+y_test <- summary(draws, pars="y_test")
+sc_post <- tibble(y_test[[1]][,1])
+lower <- y_test[[1]][,4]
+upper <- y_test[[1]][,8]
+
+sc_post <- sc_post %>% bind_cols(lower, upper)
+sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
+names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
+
+sc_data <- sc_pre %>% bind_rows(sc_post)
+
+y <- pl_treat_sales %>% filter(store_num==2) 
+y <- y %>% ungroup() %>% dplyr::select(-store_num)
+names(y)[1] <- "week"
+
+sc_data <- sc_data %>% left_join(y, by="week")
+
+sc_data$total_sales <- log(sc_data$total_sales)
+
+sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=total_sales), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") + labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train) 
+```
 

@@ -17,34 +17,51 @@ data{
 
 // The parameters accepted by the model. 
 parameters{
-  real<lower=0> sigma;      //variance for alpha equation
-  real<lower=0> epsilon;   //variance for likelihood
+  //real<lower=0> sigma2;      //variance for likelihood and beta prior
+  real<lower=0> sigma;   //variance for likelihood
+  real<lower=0> nu;        //variance for alpha equation
+  //real<lower=0> tau;      //globl shrinkage 
+  //vector<lower=0>[C] lambda;  //local shrinkage 
   vector[N] alpha;     //treatment effect 
   vector[K] theta;      //hierarchical effect
+  vector[N] theta_0;      //intercept for higher level alpha equation
   matrix[N,C] beta;          //vector of weights for control stores for each treated store
-  real beta_0;        //intercept 
+  real beta_0;        //intercept for Y equation
 }
+
+//transformed parameters {
+  //real<lower=0> sigma;  //error term sd 
+  //vector<lower=0>[C] lambda2;  //lambda^2 
+  //sigma=sqrt(sigma2); 
+  //lambda2=lambda .* lambda; 
+//}
 
 // The model to be estimated. 
 model{
   //Pre-treatment estimation
-  sigma ~ inv_gamma(3,1);
-  epsilon ~ inv_gamma(3,1); 
-  theta ~ normal(0, 2); 
-  beta_0 ~ normal(0,2);
+  nu ~ inv_gamma(3,1);
+  sigma ~ inv_gamma(3,1); 
+  theta ~ normal(0, 3); 
+  beta_0 ~ cauchy(0,3);
+  //lambda ~ cauchy(0, tau); //horseshoe prior stuff 
+  //tau ~ cauchy(0, sigma); 
+  //sigma ~ cauchy(0, 3); 
+  theta_0 ~ normal(0,2);
   for (n in 1:N) {
-    beta[n,] ~ normal(0, 2);
+    beta[n,] ~ normal(0, 1);
+    alpha[n] ~ normal(theta_0[n] + theta'*Z[,n], nu);
     for(t in 1:TT) {
-    Y[n,t] ~ normal(beta_0 + beta[n,]*X[,t] + alpha[n]*D[n,t], epsilon); //likelihood
+    Y[n,t] ~ normal(beta_0 + beta[n,]*X[,t] + alpha[n]*D[n,t], sigma); //likelihood
     }}
 }
 
 generated quantities {
   matrix[N,TT] Y_hat; //predicted values
-
+  matrix[N,TT] Y_fit; //predicted synthetic control
   for (n in 1:N) {
     for(t in 1:TT) {
-    Y_hat[n,t] = normal_rng(beta_0 +  beta[n,]*X[,t] + alpha[n]*D[n,t], epsilon); //create treated unit in all time periods
+      Y_fit[n,t] = normal_rng(beta_0 + beta[n,]*X[,t], sigma); //synthetic control in all time periods
+      Y_hat[n,t] = normal_rng(beta_0 +  beta[n,]*X[,t] + alpha[n]*D[n,t], sigma); //create treated unit in all time periods
     }}
 }
 

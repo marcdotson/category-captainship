@@ -247,7 +247,7 @@ for(i in treat_stores) {
 pl_treat_sales <- pl_treat %>% group_by(store_num, week_num) %>% summarise(total_sales=sum(sales)) #4515 obs, 105 weeks for each of 43 stores
 
 #try sample of treated stores so it will run faster 
-pl_treat_sales <- pl_treat_sales %>% filter(store_num %in% c(1:10))
+pl_treat_sales <- pl_treat_sales %>% filter(store_num %in% c(1:2))
 ```
 
 Collect data & test with PL first 
@@ -278,7 +278,7 @@ for(n in 1:N) {
 Y=log(Y)
 
 #create Z KxN matrix 
-tZ <- pl_treat %>% filter(store_num %in% c(1:10)) %>% dplyr::select(store_num, price_diff, num_upcs) %>% distinct() %>% dplyr::select(price_diff, num_upcs) %>% as.matrix()
+tZ <- pl_treat %>% filter(store_num %in% c(1:2)) %>% dplyr::select(store_num, price_diff, num_upcs) %>% distinct() %>% dplyr::select(price_diff, num_upcs) %>% as.matrix()
 Z <- t(tZ)
 K <- nrow(Z)
 
@@ -302,21 +302,27 @@ print(b1_model)
 
 draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
 save(draws, file="../Data/mn_cereal_draws.RData")
+#load("../Data/mn_cereal_draws.RData")
 ```
 
 ###### RESULTS ######
 
 Check results: theta is completely informed by the prior, we can see based on the symmetric distribution. Also, when I turned off theta's prior, the traceplots did not converge anymore. 
+
+theta1 = price_diff =max(upc_price)-min(upc_price)
+theta2 = num_upcs = upc_count/max(upc_count)
 ```{r hierarchy-recovery, echo=FALSE, message=FALSE}
 #traceplots
-traceplot(draws, pars=c("beta[1,1]", "beta[2,1]", "beta[3,1]", "beta[4,1]", "beta[1,2]", "beta[2,2]", "beta[3,2]", "beta[4,2]")) #N, C
+traceplot(draws, pars=c("beta[1,1]", "beta[1,2]", "beta[1,2]", "beta[1,4]", "beta[2,1]", "beta[2,2]", "beta[2,3]", "beta[2,4]")) #N, C
 traceplot(draws, pars="beta_0")
 traceplot(draws, pars="sigma")
 traceplot(draws, pars="theta")
-traceplot(draws, pars="epsilon")
+traceplot(draws, pars="nu")
 traceplot(draws, pars=c("alpha"))
+traceplot(draws, pars=c("theta_0"))
 
 print(draws, pars=c("alpha", "theta"))
+print(draws, pars="theta_0")
 ```
 
 Synthetic control v Y: compare the synthetic control for selected treated stores to the actual sales (Y) for those treated stores 
@@ -333,7 +339,7 @@ beta_mat <- matrix(beta, nrow=b1_data$N, ncol=b1_data$C, byrow=TRUE)
 
 sc <- matrix(NA, nrow=b1_data$N, ncol=b1_data$TT)
 for(n in 1:N) {
-  sc[n,] = as.matrix(beta_0)[1,1] + beta_mat[n,]%*%as.matrix(X)  
+  sc[n,] = as.matrix(beta_0)[1,1] + beta_mat[n,]%*%as.matrix(X)  #fitted synthetic control in entire time period
 }
 
 sc_data  <- as.data.frame(t(sc))
@@ -356,11 +362,11 @@ sc_data %>% filter(treat_store==1) %>% ggplot(aes(x=week)) + geom_line(aes(y=y))
 
 sc_data %>% filter(treat_store==2) %>% ggplot(aes(x=week)) + geom_line(aes(y=y)) + geom_line(aes(y=synthetic_control), linetype="dashed") + ggtitle("SC (dashed) versus actual treated sales (solid): store 2 ") + geom_vline(xintercept=I)
 
-sc_data %>% filter(treat_store==3) %>% ggplot(aes(x=week)) + geom_line(aes(y=y)) + geom_line(aes(y=synthetic_control), linetype="dashed") + ggtitle("SC (dashed) versus actual treated sales (solid): store 3") + geom_vline(xintercept=I)
-
-sc_data %>% filter(treat_store==4) %>% ggplot(aes(x=week)) + geom_line(aes(y=y)) + geom_line(aes(y=synthetic_control), linetype="dashed") + ggtitle("SC (dashed) versus actual treated sales (solid): store 4") + geom_vline(xintercept=I)
-
-sc_data %>% filter(treat_store==5) %>% ggplot(aes(x=week)) + geom_line(aes(y=y)) + geom_line(aes(y=synthetic_control), linetype="dashed") + ggtitle("SC (dashed) versus actual treated sales (solid): store 5") + geom_vline(xintercept=I)
+# sc_data %>% filter(treat_store==3) %>% ggplot(aes(x=week)) + geom_line(aes(y=y)) + geom_line(aes(y=synthetic_control), linetype="dashed") + ggtitle("SC (dashed) versus actual treated sales (solid): store 3") + geom_vline(xintercept=I)
+# 
+# sc_data %>% filter(treat_store==4) %>% ggplot(aes(x=week)) + geom_line(aes(y=y)) + geom_line(aes(y=synthetic_control), linetype="dashed") + ggtitle("SC (dashed) versus actual treated sales (solid): store 4") + geom_vline(xintercept=I)
+# 
+# sc_data %>% filter(treat_store==5) %>% ggplot(aes(x=week)) + geom_line(aes(y=y)) + geom_line(aes(y=synthetic_control), linetype="dashed") + ggtitle("SC (dashed) versus actual treated sales (solid): store 5") + geom_vline(xintercept=I)
 
 #sc_data %>% ggplot(aes(x=week)) + geom_line(aes(y=y, col=as.factor(treat_store))) + geom_line(aes(y=synthetic_control, col=as.factor(treat_store)), linetype="dashed") + ggtitle("SC versus actual treated sales") + facet_wrap(~treat_store)
 ```
@@ -390,6 +396,31 @@ yhat %>% filter(treat_store==1) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lo
 
 yhat %>% filter(treat_store==2) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yhat, color="Predicted Y"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Predicted Y values compared to actual Y values, store 2") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Predicted Y", "True Y"), values=c("blue", "red")) 
 
-yhat %>% filter(treat_store==3) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yhat, color="Predicted Y"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Predicted Y values compared to actual Y values, store 3") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Predicted Y", "True Y"), values=c("blue", "red")) 
+# yhat %>% filter(treat_store==3) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yhat, color="Predicted Y"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Predicted Y values compared to actual Y values, store 3") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Predicted Y", "True Y"), values=c("blue", "red")) 
+```
+
+```{r}
+Y_fit <- summary(draws, pars="Y_fit")
+yfit <- tibble(Y_fit[[1]][,1])
+
+lower <- Y_fit[[1]][,4]
+upper <- Y_fit[[1]][,8]
+
+yfit <- yfit %>% bind_cols(lower, upper)
+
+yfit <- yfit %>% mutate(treat_store=rep(1:b1_data$N, each=b1_data$TT), week=rep(1:b1_data$TT, times=b1_data$N))
+
+names(yfit) <- c("yfit","lower", "upper", "treat_store", "week")
+
+trueY <- as.data.frame(t(b1_data$Y))
+trueY <- stack(trueY)
+trueY <- trueY %>% mutate(treat_store=rep(1:b1_data$N, each=b1_data$TT))
+
+yfit <- bind_cols(yfit, trueY$values)
+names(yfit)[6] <- "trueY"
+
+yfit %>% filter(treat_store==1) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yfit, color="Synthetic Control"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Synthetic Control values compared to actual Y values, store 1") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Synthetic Control", "True Y"), values=c("blue", "red"))+ geom_vline(xintercept=I) 
+
+yfit %>% filter(treat_store==2) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yfit, color="Synthetic Control"), linetype="dashed")  +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Synthetic Control values compared to actual Y values, store 2") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Synthetic Control", "True Y"), values=c("blue", "red"))+ geom_vline(xintercept=I) 
 ```
 
