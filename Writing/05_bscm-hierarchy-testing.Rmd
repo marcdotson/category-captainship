@@ -65,7 +65,6 @@ sim_data <- stan(
 #extract values
 sim_beta <- extract(sim_data)$beta       #weights for control stores 
 sim_theta <- extract(sim_data)$theta     #effect of store covariates on alpha
-sim_theta <- rep(0, K)
 sim_Y <- extract(sim_data)$Y             #treat unit in all time periods
 sim_beta0 <- extract(sim_data)$beta_0    #intercept in y 
 sim_theta0 <- extract(sim_data)$theta_0    #intercept in alpha equation  
@@ -189,6 +188,7 @@ plot(x=t(b1_data$alpha), y=alpha_est, xlab="True treatment effect", ylab="Poster
      col=c("red", "blue", "green", "purple"), pch=19)
 abline(a=0,b=1)
 ```
+
 Test selected:
 
 Compare estimated average values for alpha to the true alpha in treated store 1 

@@ -360,7 +360,7 @@ draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
 ```
 
 Check results
-```{r hierarchy-recovery, echo=FALSE, message=FALSE}
+```{r hierarchy-recovery-MN, echo=FALSE, message=FALSE}
 #traceplots
 traceplot(draws, pars=c("beta[1]", "beta[2]", "beta[3]", "beta[4]", "beta[5]", "beta[6]", "beta[7]", "beta[8]", "beta[9]", "beta[10]")) #length p
 traceplot(draws, pars="beta_0")
@@ -370,7 +370,7 @@ traceplot(draws, pars="tau")
 ```
 
 Look at synthetic control vs Y 
-```{r intercept-post-period-p2}
+```{r intercept-p2-MN-SC}
 #pre sc
 y_fit <- summary(draws, pars="y_fit")
 sc_pre <- tibble(y_fit[[1]][,1])

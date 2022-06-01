@@ -29,10 +29,10 @@ generated quantities {
     theta[k] = normal_rng(0, 3);
     //theta[k] =0;
   }
-  //theta_0=normal_rng(0, 3);
   sigma=inv_gamma_rng(2,1); 
   nu = inv_gamma_rng(2,1);
   beta_0 = cauchy_rng(0, 3);
+  
   for(n in 1:N) {
     theta_0[n] = normal_rng(0, 3);
     alpha[n]=normal_rng(theta_0[n] + theta'*Z[,n], nu);

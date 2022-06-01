@@ -36,8 +36,6 @@ sim_values <- list(TT=TT, C=C, N=N, K=K, X=X, D=D, Z=Z)
 Generate data in stan: the first stan model printed here is to generate
 synthetic data using stan to test our actual model
 
-    ## hash mismatch so recompiling; make sure Stan code ends with a blank line
-
     ## S4 class stanmodel 'gen_hierarchy_data_test' coded as follows:
     ## //
     ## // This file creates synthetic data to use with bscm_hierarchy_testing model
@@ -67,13 +65,13 @@ synthetic data using stan to test our actual model
     ##   real<lower=0> sigma;     //variance of the likelihood equation
     ##   
     ##   for (k in 1:K) {
-    ##     //theta[k] = normal_rng(0, 3);
-    ##     theta[k] =0;
+    ##     theta[k] = normal_rng(0, 3);
+    ##     //theta[k] =0;
     ##   }
-    ##   //theta_0=normal_rng(0, 3);
     ##   sigma=inv_gamma_rng(2,1); 
     ##   nu = inv_gamma_rng(2,1);
     ##   beta_0 = cauchy_rng(0, 3);
+    ##   
     ##   for(n in 1:N) {
     ##     theta_0[n] = normal_rng(0, 3);
     ##     alpha[n]=normal_rng(theta_0[n] + theta'*Z[,n], nu);
@@ -95,8 +93,8 @@ synthetic data using stan to test our actual model
     ## Chain 1: Iteration: 1 / 1 [100%]  (Sampling)
     ## Chain 1: 
     ## Chain 1:  Elapsed Time: 0 seconds (Warm-up)
-    ## Chain 1:                0.000564 seconds (Sampling)
-    ## Chain 1:                0.000564 seconds (Total)
+    ## Chain 1:                0.000534 seconds (Sampling)
+    ## Chain 1:                0.000534 seconds (Total)
     ## Chain 1:
 
 ##### MODEL
@@ -176,9 +174,11 @@ yet (horeshoe prior worked for simulation but not real data)
     ## 
     ## generated quantities {
     ##   matrix[N,TT] Y_hat; //predicted values
+    ##   matrix[N,TT] Y_fit; //predicted synthetic control
     ##   for (n in 1:N) {
     ##     for(t in 1:TT) {
-    ##     Y_hat[n,t] = normal_rng(beta_0 +  beta[n,]*X[,t] + alpha[n]*D[n,t], sigma); //create treated unit in all time periods
+    ##       Y_fit[n,t] = normal_rng(beta_0 + beta[n,]*X[,t], sigma); //synthetic control in all time periods
+    ##       Y_hat[n,t] = normal_rng(beta_0 +  beta[n,]*X[,t] + alpha[n]*D[n,t], sigma); //create treated unit in all time periods
     ##     }}
     ## }
     ## 
@@ -205,13 +205,13 @@ yet (horeshoe prior worked for simulation but not real data)
     ## //   
     ## // }
 
-    ## Warning: There were 290 divergent transitions after warmup. See
+    ## Warning: There were 94 divergent transitions after warmup. See
     ## http://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
     ## to find out why this is a problem and how to eliminate them.
 
     ## Warning: Examine the pairs() plot to diagnose sampling problems
 
-    ## Warning: The largest R-hat is 1.08, indicating chains have not mixed.
+    ## Warning: The largest R-hat is 1.06, indicating chains have not mixed.
     ## Running the chains for more iterations may help. See
     ## http://mc-stan.org/misc/warnings.html#r-hat
 
@@ -240,7 +240,9 @@ treated stores to the actual sales (Y) for those treated stores
 
 Compare true alphas to estimated alphas:
 
-![](../Figures/bscm/unnamed-chunk-5-1.png)<!-- --> Test selected:
+![](../Figures/bscm/unnamed-chunk-5-1.png)<!-- -->
+
+Test selected:
 
 Compare estimated average values for alpha to the true alpha in treated
 store 1
@@ -253,7 +255,7 @@ store1_pre <- sc_data %>% filter(treat_store==1, week<(I[1]+1))
 mean(store1_pre$alpha)
 ```
 
-    ## [1] 0.08721678
+    ## [1] -0.08651374
 
 ``` r
 #this is the treatment effect (alpha) in store 1 in the POST period. we expect this to be equal to the true alpha 
@@ -261,14 +263,14 @@ store1_post <- sc_data %>% filter(treat_store==1, week>I[1])
 mean(store1_post$alpha)
 ```
 
-    ## [1] -0.5437877
+    ## [1] 2.236166
 
 ``` r
 #compare to true alpha for store 1
 sim_alpha[1]
 ```
 
-    ## [1] -0.4449484
+    ## [1] 2.409909
 
 Compare estimated average values for alpha to the true alpha in treated
 store 5
@@ -279,7 +281,7 @@ store5_pre <- sc_data %>% filter(treat_store==5, week<(I[1]+1))
 mean(store5_pre$alpha)
 ```
 
-    ## [1] 0.001720653
+    ## [1] -0.0240613
 
 ``` r
 #this is the treatment effect (alpha) in store 5 in the POST period. we expect this to be equal to the true alpha
@@ -287,11 +289,11 @@ store5_post <- sc_data %>% filter(treat_store==5, week>I[1])
 mean(store5_post$alpha)
 ```
 
-    ## [1] 0.3321947
+    ## [1] -6.757951
 
 ``` r
 #compare to true alpha for store 5
 sim_alpha[5]
 ```
 
-    ## [1] 0.4261901
+    ## [1] -6.733947
