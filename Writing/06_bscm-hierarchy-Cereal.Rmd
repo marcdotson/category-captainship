@@ -1,11 +1,11 @@
 ---
-title: "Synthetic Control Model Testing with Cereal (ND)"
+title: "Synthetic Control Model Testing with Cereal"
 author: "Morgan Bale"
 date: "5/13/2022"
 output: github_document
 ---
 
-The purpose of this file is to test how our hierarchical model works with real data. The data was cleaned using the cereal cleaning file. We use ND to test the model, since we are most sure which retailer was treated in ND. The data comes from our Google Drive folder "cleaned data sets" and the model description can be found in `05_bscm-hierarchy-testing.Rmd`. 
+The purpose of this file is to test how our hierarchical model works with real data. The data was cleaned using the cereal cleaning file. We use MN to test the model, since we are mostly sure which retailer was treated in MN. The data comes from our Google Drive folder "cleaned data sets" and the model description can be found in `05_bscm-hierarchy-testing.Rmd`. 
 
 ```{r opts, echo=FALSE, message=FALSE}
 library(tidyverse)
@@ -82,7 +82,7 @@ for(i in treat_stores) {
 pl_treat_sales <- pl_treat %>% group_by(store_num, week_num) %>% summarise(total_sales=sum(sales)) #4515 obs, 105 weeks for each of 43 stores
 
 #try sample of treated stores so it will run faster 
-pl_treat_sales <- pl_treat_sales %>% filter(store_num %in% c(1:10))
+pl_treat_sales <- pl_treat_sales %>% filter(store_num %in% c(1:5))
 ```
 
 Collect data & test with PL first 
@@ -113,9 +113,14 @@ for(n in 1:N) {
 Y=log(Y)
 
 #create Z KxN matrix 
-tZ <- pl_treat %>% filter(store_num %in% c(1:10)) %>% dplyr::select(store_num, price_diff, num_upcs) %>% distinct() %>% dplyr::select(price_diff, num_upcs) %>% as.matrix()
+tZ <- pl_treat %>% filter(store_num %in% c(1:5)) %>% dplyr::select(store_num, price_diff, num_upcs) %>% distinct() %>% dplyr::select(price_diff, num_upcs) %>% as.matrix()
 Z <- t(tZ)
+Z <- Z %>% rbind(rep(1, N))
 K <- nrow(Z)
+
+#just intercept model
+Z <- t(as.matrix(Z[3,]))
+K <- 1
 
 #create D a NxTT matrix for which time periods a treated store is treated in
 #week 54 starts post period 
@@ -144,8 +149,9 @@ save(draws, file="../Data/mn_cereal_draws.RData")
 
 Check results: theta is completely informed by the prior, we can see based on the symmetric distribution. Also, when I turned off theta's prior, the traceplots did not converge anymore. 
 
-theta1 = price_diff =max(upc_price)-min(upc_price)
-theta2 = num_upcs = upc_count/max(upc_count)
+theta1: price_diff = max(upc_price)-min(upc_price)
+theta2: num_upcs = upc_count/max(upc_count)
+theta3: intercept (or if there is only one theta it is the intercept) 
 ```{r hierarchy-recovery-MN-Cereal, echo=FALSE, message=FALSE}
 #traceplots
 traceplot(draws, pars=c("beta[1,1]", "beta[1,2]", "beta[1,2]", "beta[1,4]", "beta[2,1]", "beta[2,2]", "beta[2,3]", "beta[2,4]")) #N, C
@@ -154,15 +160,11 @@ traceplot(draws, pars="sigma")
 traceplot(draws, pars="theta")
 traceplot(draws, pars="nu")
 traceplot(draws, pars=c("alpha"))
-traceplot(draws, pars=c("theta_0"))
 
 print(draws, pars=c("alpha", "theta"))
-print(draws, pars="theta_0")
 ```
 
-Synthetic control v Y: compare the synthetic control for selected treated stores to the actual sales (Y) for those treated stores 
-
-The synthetic controls are not matching Y in the pre period so results are unreliable. 
+Synthetic control v Y: compare the synthetic control for selected treated stores to the actual sales (Y) for those treated stores --> here SC= beta_0 + beta*X
 ```{r hierarchy-SC-MN-Cereal, echo=FALSE, message=FALSE}
 #construct the synthetic control 
 beta0 <- summary(draws, pars="beta_0")
@@ -203,7 +205,7 @@ sc_data %>% filter(treat_store==4) %>% ggplot(aes(x=week)) + geom_line(aes(y=y))
  
 sc_data %>% filter(treat_store==5) %>% ggplot(aes(x=week)) + geom_line(aes(y=y)) + geom_line(aes(y=synthetic_control), linetype="dashed") + ggtitle("SC (dashed) versus actual treated sales (solid): store 5") + geom_vline(xintercept=I)
 
-sc_data %>% ggplot(aes(x=week)) + geom_line(aes(y=y, col=as.factor(treat_store))) + geom_line(aes(y=synthetic_control, col=as.factor(treat_store)), linetype="dashed") + ggtitle("SC versus actual treated sales") + facet_wrap(~treat_store)
+#sc_data %>% ggplot(aes(x=week)) + geom_line(aes(y=y, col=as.factor(treat_store))) + geom_line(aes(y=synthetic_control, col=as.factor(treat_store)), linetype="dashed") + ggtitle("SC versus actual treated sales") + facet_wrap(~treat_store)
 ```
 
 Check how well Y_hat matches actual y values 
@@ -234,6 +236,7 @@ yhat %>% filter(treat_store==2) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lo
 yhat %>% filter(treat_store==3) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yhat, color="Predicted Y"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Predicted Y values compared to actual Y values, store 3") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Predicted Y", "True Y"), values=c("blue", "red")) 
 ```
 
+Check yfit compared to y --> yfit is the "fitted" SC made in generated quantities using SC=normal_rng(beta_0 + beta*X)
 ```{r hierarchy-Yfit-MN-Cereal}
 Y_fit <- summary(draws, pars="Y_fit")
 yfit <- tibble(Y_fit[[1]][,1])
@@ -254,9 +257,9 @@ trueY <- trueY %>% mutate(treat_store=rep(1:b1_data$N, each=b1_data$TT))
 yfit <- bind_cols(yfit, trueY$values)
 names(yfit)[6] <- "trueY"
 
-yfit %>% filter(treat_store==1) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yfit, color="Synthetic Control"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Synthetic Control values compared to actual Y values, store 1") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Synthetic Control", "True Y"), values=c("blue", "red"))+ geom_vline(xintercept=I) 
+yfit %>% filter(treat_store==1) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yfit, color="Synthetic Control"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Fitted Synthetic Control values compared to actual Y values, store 1") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Synthetic Control", "True Y"), values=c("blue", "red"))+ geom_vline(xintercept=I) 
 
-yfit %>% filter(treat_store==2) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yfit, color="Synthetic Control"), linetype="dashed")  +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Synthetic Control values compared to actual Y values, store 2") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Synthetic Control", "True Y"), values=c("blue", "red"))+ geom_vline(xintercept=I) 
+yfit %>% filter(treat_store==2) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yfit, color="Synthetic Control"), linetype="dashed")  +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Fitted Synthetic Control values compared to actual Y values, store 2") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Synthetic Control", "True Y"), values=c("blue", "red"))+ geom_vline(xintercept=I) 
 ```
 
 

@@ -18,7 +18,6 @@ data{
 generated quantities {
   vector[N] alpha;          //treatment effect for each treated store
   vector[K] theta;         //effect of store level covariates
-  vector[N] theta_0;            //intercept for alpha equation 
   matrix[N,C] beta;          //vector of weights for control stores for each treated store
   matrix[N, TT] Y;            //Treated unit sales in every time period
   real beta_0;              //intercept 
@@ -32,10 +31,8 @@ generated quantities {
   sigma=inv_gamma_rng(2,1); 
   nu = inv_gamma_rng(2,1);
   beta_0 = cauchy_rng(0, 3);
-  
   for(n in 1:N) {
-    theta_0[n] = normal_rng(0, 3);
-    alpha[n]=normal_rng(theta_0[n] + theta'*Z[,n], nu);
+    alpha[n]=normal_rng(theta'*Z[,n], nu);
     for(c in 1:C) {
       beta[n,c]=normal_rng(0,1);
     }

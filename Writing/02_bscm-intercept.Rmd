@@ -321,6 +321,12 @@ pl_treat_sales <- pl_treat %>% group_by(store_num, week_num) %>% summarise(total
 pl_treat_sales <- pl_treat_sales %>% filter(store_num %in% c(1:10))
 ```
 
+Test with control store as "treated"
+```{r}
+pl_treat_sales <- pl_control_sales %>% filter(store_code_uc==791465)
+pl_control_sales <- pl_control_sales %>% filter(store_code_uc!=791465)
+```
+
 Collect data & test with PL first 
 ```{r}
 N_train <- 53
@@ -328,7 +334,7 @@ N_test <- nrow(weeks) - N_train
 p <- length(unique(pl_control_sales$store_code_uc))
 
 #treated unit in the pre treatment
-y_train  <- pl_treat_sales %>% filter(week_num %in% c(1:N_train), store_num==2) %>% pull(total_sales)  
+y_train  <- pl_treat_sales %>% filter(week_num %in% c(1:N_train)) %>% pull(total_sales)  
 
 y_train <- log(y_train)
 
@@ -353,7 +359,7 @@ There are many divergent transitions
 ```{r, echo=FALSE}
 #b1_model <- stan_model(file = here::here("Code", "Model", "bscm_hierarchy.stan"))
 b1_model <- stan_model(file="../Code/Model/bscm_b1_intercept_p2.stan")
-print(b1_model)
+#print(b1_model)
 
 draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
 #save(draws, file="../Data/mn_cereal_draws.RData")
@@ -394,8 +400,8 @@ names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
 
 sc_data <- sc_pre %>% bind_rows(sc_post)
 
-y <- pl_treat_sales %>% filter(store_num==2) 
-y <- y %>% ungroup() %>% dplyr::select(-store_num)
+#y <- pl_treat_sales %>% filter(store_num==2) 
+y <- pl_treat_sales %>% ungroup() %>% dplyr::select(-store_code_uc)
 names(y)[1] <- "week"
 
 sc_data <- sc_data %>% left_join(y, by="week")
