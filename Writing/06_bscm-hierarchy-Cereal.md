@@ -1,12 +1,12 @@
-Synthetic Control Model Testing with Cereal (ND)
+Synthetic Control Model Testing with Cereal
 ================
 Morgan Bale
 5/13/2022
 
 The purpose of this file is to test how our hierarchical model works
 with real data. The data was cleaned using the cereal cleaning file. We
-use ND to test the model, since we are most sure which retailer was
-treated in ND. The data comes from our Google Drive folder “cleaned data
+use MN to test the model, since we are mostly sure which retailer was
+treated in MN. The data comes from our Google Drive folder “cleaned data
 sets” and the model description can be found in
 `05_bscm-hierarchy-testing.Rmd`.
 
@@ -120,7 +120,12 @@ Y=log(Y)
 #create Z KxN matrix 
 tZ <- pl_treat %>% filter(store_num %in% c(1:10)) %>% dplyr::select(store_num, price_diff, num_upcs) %>% distinct() %>% dplyr::select(price_diff, num_upcs) %>% as.matrix()
 Z <- t(tZ)
+Z <- Z %>% rbind(rep(1, N))
 K <- nrow(Z)
+
+#just intercept model
+Z <- t(as.matrix(Z[3,]))
+K <- 1
 
 #create D a NxTT matrix for which time periods a treated store is treated in
 #week 54 starts post period 
@@ -161,7 +166,7 @@ yet.
     ##   int TT; //Number of total time periods
     ##   int C; //Number of control stores
     ##   int N; //number of treated stores 
-    ##   int K; //number of treated store covariates
+    ##   int K; //number of treated store covariates plus a column of ones for intercept
     ##   matrix[N,TT] D; //treatment indicator for every time period for every treated store 
     ##   matrix[C, TT] X; //Control unit store observations in every time period
     ##   matrix[K, N] Z;  //treated store covariates 
@@ -177,7 +182,6 @@ yet.
     ##   //vector<lower=0>[C] lambda;  //local shrinkage 
     ##   vector[N] alpha;     //treatment effect 
     ##   vector[K] theta;      //hierarchical effect
-    ##   vector[N] theta_0;      //intercept for higher level alpha equation
     ##   matrix[N,C] beta;          //vector of weights for control stores for each treated store
     ##   real beta_0;        //intercept for Y equation
     ## }
@@ -199,10 +203,9 @@ yet.
     ##   //lambda ~ cauchy(0, tau); //horseshoe prior stuff 
     ##   //tau ~ cauchy(0, sigma); 
     ##   //sigma ~ cauchy(0, 3); 
-    ##   theta_0 ~ normal(0,2);
     ##   for (n in 1:N) {
     ##     beta[n,] ~ normal(0, 1);
-    ##     alpha[n] ~ normal(theta_0[n] + theta'*Z[,n], nu);
+    ##     alpha[n] ~ normal(theta'*Z[,n], nu);
     ##     for(t in 1:TT) {
     ##     Y[n,t] ~ normal(beta_0 + beta[n,]*X[,t] + alpha[n]*D[n,t], sigma); //likelihood
     ##     }}
@@ -246,7 +249,7 @@ yet.
 
     ## Warning: Examine the pairs() plot to diagnose sampling problems
 
-    ## Warning: The largest R-hat is 1.09, indicating chains have not mixed.
+    ## Warning: The largest R-hat is 1.08, indicating chains have not mixed.
     ## Running the chains for more iterations may help. See
     ## http://mc-stan.org/misc/warnings.html#r-hat
 
@@ -262,62 +265,39 @@ yet.
 
 Check results: theta is completely informed by the prior, we can see
 based on the symmetric distribution. Also, when I turned off theta’s
-prior, the traceplots did not converge anymore.
+prior, the traceplots did not converge.
 
-theta1 = price_diff =max(upc_price)-min(upc_price) theta2 = num_upcs =
-upc_count/max(upc_count)
-![](../Figures/bscm/hierarchy-recovery-MN-Cereal-1.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-MN-Cereal-2.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-MN-Cereal-3.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-MN-Cereal-4.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-MN-Cereal-5.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-MN-Cereal-6.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-MN-Cereal-7.png)<!-- -->
+theta1: price_diff = max(upc_price)-min(upc_price) theta2: num_upcs =
+upc_count/max(upc_count) theta3: intercept (or if there is only one
+theta it is the intercept)
+![](../Figures/bscm/hierarchy-recovery-MN-Cereal-1.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-MN-Cereal-2.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-MN-Cereal-3.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-MN-Cereal-4.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-MN-Cereal-5.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-MN-Cereal-6.png)<!-- -->
 
     ## Inference for Stan model: bscm_hierarchy_testing.
     ## 4 chains, each with iter=2000; warmup=1000; thin=1; 
     ## post-warmup draws per chain=1000, total post-warmup draws=4000.
     ## 
     ##            mean se_mean   sd  2.5%   25%   50%   75% 97.5% n_eff Rhat
-    ## alpha[1]   0.06    0.01 0.09 -0.12 -0.01  0.06  0.12  0.24   173 1.03
-    ## alpha[2]   0.07    0.01 0.08 -0.10  0.01  0.07  0.12  0.23   164 1.02
-    ## alpha[3]   0.08    0.01 0.08 -0.08  0.02  0.08  0.14  0.24   137 1.04
-    ## alpha[4]   0.05    0.01 0.09 -0.12 -0.01  0.05  0.11  0.22   226 1.02
-    ## alpha[5]   0.09    0.01 0.09 -0.08  0.03  0.09  0.15  0.26   163 1.02
-    ## alpha[6]  -0.08    0.01 0.10 -0.27 -0.15 -0.08 -0.01  0.11    81 1.06
-    ## alpha[7]  -0.10    0.01 0.09 -0.27 -0.16 -0.10 -0.04  0.08   160 1.01
-    ## alpha[8]  -0.04    0.01 0.09 -0.22 -0.11 -0.04  0.02  0.13   122 1.02
-    ## alpha[9]  -0.03    0.01 0.09 -0.20 -0.09 -0.03  0.03  0.15   177 1.03
-    ## alpha[10] -0.05    0.01 0.09 -0.23 -0.11 -0.05  0.01  0.12   153 1.00
-    ## theta[1]  -0.01    0.03 0.28 -0.57 -0.19 -0.02  0.17  0.55   125 1.03
-    ## theta[2]  -0.08    0.23 2.46 -4.92 -1.70 -0.04  1.48  4.98   117 1.02
+    ## alpha[1]   0.03    0.01 0.07 -0.12 -0.02  0.03  0.08  0.17   203 1.01
+    ## alpha[2]   0.04    0.00 0.07 -0.09 -0.01  0.04  0.09  0.19   243 1.01
+    ## alpha[3]   0.06    0.00 0.07 -0.09  0.01  0.06  0.11  0.20   215 1.02
+    ## alpha[4]   0.04    0.01 0.07 -0.11 -0.01  0.04  0.09  0.19   223 1.02
+    ## alpha[5]   0.07    0.01 0.08 -0.08  0.01  0.06  0.12  0.23   205 1.01
+    ## alpha[6]  -0.05    0.00 0.07 -0.19 -0.10 -0.05  0.00  0.09   279 1.01
+    ## alpha[7]  -0.08    0.00 0.07 -0.22 -0.12 -0.07 -0.03  0.06   246 1.01
+    ## alpha[8]  -0.02    0.01 0.07 -0.18 -0.07 -0.02  0.03  0.12   217 1.02
+    ## alpha[9]  -0.02    0.01 0.08 -0.18 -0.08 -0.02  0.03  0.13   172 1.02
+    ## alpha[10] -0.03    0.01 0.07 -0.17 -0.08 -0.03  0.02  0.12   199 1.01
+    ## theta[1]   0.00    0.00 0.06 -0.11 -0.03  0.00  0.04  0.12   171 1.03
     ## 
-    ## Samples were drawn using NUTS(diag_e) at Wed Jun  1 12:19:48 2022.
-    ## For each parameter, n_eff is a crude measure of effective sample size,
-    ## and Rhat is the potential scale reduction factor on split chains (at 
-    ## convergence, Rhat=1).
-
-    ## Inference for Stan model: bscm_hierarchy_testing.
-    ## 4 chains, each with iter=2000; warmup=1000; thin=1; 
-    ## post-warmup draws per chain=1000, total post-warmup draws=4000.
-    ## 
-    ##             mean se_mean   sd  2.5%   25%  50%  75% 97.5% n_eff Rhat
-    ## theta_0[1]  0.20    0.11 0.78 -1.27 -0.31 0.17 0.72  1.79    51 1.05
-    ## theta_0[2]  0.22    0.10 0.76 -1.20 -0.30 0.16 0.69  1.82    60 1.04
-    ## theta_0[3]  0.25    0.14 1.17 -2.12 -0.52 0.27 1.03  2.53    70 1.06
-    ## theta_0[4]  0.20    0.11 0.81 -1.31 -0.30 0.16 0.71  1.82    52 1.06
-    ## theta_0[5]  0.24    0.10 0.78 -1.26 -0.28 0.20 0.74  1.90    60 1.04
-    ## theta_0[6]  0.06    0.13 0.85 -1.68 -0.43 0.06 0.59  1.71    45 1.08
-    ## theta_0[7]  0.07    0.11 0.79 -1.40 -0.44 0.03 0.56  1.79    49 1.06
-    ## theta_0[8]  0.14    0.10 0.75 -1.28 -0.36 0.09 0.63  1.69    54 1.05
-    ## theta_0[9]  0.17    0.10 0.77 -1.24 -0.36 0.12 0.65  1.82    63 1.03
-    ## theta_0[10] 0.08    0.09 0.70 -1.26 -0.39 0.05 0.56  1.45    55 1.05
-    ## 
-    ## Samples were drawn using NUTS(diag_e) at Wed Jun  1 12:19:48 2022.
+    ## Samples were drawn using NUTS(diag_e) at Mon Jun  6 11:14:36 2022.
     ## For each parameter, n_eff is a crude measure of effective sample size,
     ## and Rhat is the potential scale reduction factor on split chains (at 
     ## convergence, Rhat=1).
 
 Synthetic control v Y: compare the synthetic control for selected
-treated stores to the actual sales (Y) for those treated stores
-
-The synthetic controls are not matching Y in the pre period so results
-are unreliable.
-![](../Figures/bscm/hierarchy-SC-MN-Cereal-1.png)<!-- -->![](../Figures/bscm/hierarchy-SC-MN-Cereal-2.png)<!-- -->![](../Figures/bscm/hierarchy-SC-MN-Cereal-3.png)<!-- -->![](../Figures/bscm/hierarchy-SC-MN-Cereal-4.png)<!-- -->![](../Figures/bscm/hierarchy-SC-MN-Cereal-5.png)<!-- -->![](../Figures/bscm/hierarchy-SC-MN-Cereal-6.png)<!-- -->
+treated stores to the actual sales (Y) for those treated stores –> here
+SC= beta_0 + beta\*X
+![](../Figures/bscm/hierarchy-SC-MN-Cereal-1.png)<!-- -->![](../Figures/bscm/hierarchy-SC-MN-Cereal-2.png)<!-- -->![](../Figures/bscm/hierarchy-SC-MN-Cereal-3.png)<!-- -->![](../Figures/bscm/hierarchy-SC-MN-Cereal-4.png)<!-- -->![](../Figures/bscm/hierarchy-SC-MN-Cereal-5.png)<!-- -->
 
 Check how well Y_hat matches actual y values
 
@@ -370,6 +350,9 @@ yhat %>% filter(treat_store==3) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lo
 
 ![](../Figures/bscm/hierarchy-Yhat-MN-Cereal-3.png)<!-- -->
 
+Check yfit compared to y –> yfit is the “fitted” SC made in generated
+quantities using SC=normal_rng(beta_0 + beta\*X)
+
 ``` r
 Y_fit <- summary(draws, pars="Y_fit")
 yfit <- tibble(Y_fit[[1]][,1])
@@ -402,13 +385,13 @@ yfit <- bind_cols(yfit, trueY$values)
 ``` r
 names(yfit)[6] <- "trueY"
 
-yfit %>% filter(treat_store==1) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yfit, color="Synthetic Control"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Synthetic Control values compared to actual Y values, store 1") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Synthetic Control", "True Y"), values=c("blue", "red"))+ geom_vline(xintercept=I) 
+yfit %>% filter(treat_store==1) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yfit, color="Synthetic Control"), linetype="dashed") +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Fitted Synthetic Control values compared to actual Y values, store 1") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Synthetic Control", "True Y"), values=c("blue", "red"))+ geom_vline(xintercept=I) 
 ```
 
 ![](../Figures/bscm/hierarchy-Yfit-MN-Cereal-1.png)<!-- -->
 
 ``` r
-yfit %>% filter(treat_store==2) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yfit, color="Synthetic Control"), linetype="dashed")  +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Synthetic Control values compared to actual Y values, store 2") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Synthetic Control", "True Y"), values=c("blue", "red"))+ geom_vline(xintercept=I) 
+yfit %>% filter(treat_store==2) %>% ggplot(aes(x=week))+ geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=yfit, color="Synthetic Control"), linetype="dashed")  +geom_line(aes(y=trueY, color="True Y")) + ggtitle("Fitted Synthetic Control values compared to actual Y values, store 2") + labs(x="Week", y="Sales") + scale_color_manual("", breaks=c("Synthetic Control", "True Y"), values=c("blue", "red"))+ geom_vline(xintercept=I) 
 ```
 
 ![](../Figures/bscm/hierarchy-Yfit-MN-Cereal-2.png)<!-- -->

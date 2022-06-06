@@ -82,7 +82,7 @@ for(i in treat_stores) {
 pl_treat_sales <- pl_treat %>% group_by(store_num, week_num) %>% summarise(total_sales=sum(sales)) #4515 obs, 105 weeks for each of 43 stores
 
 #try sample of treated stores so it will run faster 
-pl_treat_sales <- pl_treat_sales %>% filter(store_num %in% c(1:5))
+pl_treat_sales <- pl_treat_sales %>% filter(store_num %in% c(1:10))
 ```
 
 Collect data & test with PL first 
@@ -113,7 +113,7 @@ for(n in 1:N) {
 Y=log(Y)
 
 #create Z KxN matrix 
-tZ <- pl_treat %>% filter(store_num %in% c(1:5)) %>% dplyr::select(store_num, price_diff, num_upcs) %>% distinct() %>% dplyr::select(price_diff, num_upcs) %>% as.matrix()
+tZ <- pl_treat %>% filter(store_num %in% c(1:10)) %>% dplyr::select(store_num, price_diff, num_upcs) %>% distinct() %>% dplyr::select(price_diff, num_upcs) %>% as.matrix()
 Z <- t(tZ)
 Z <- Z %>% rbind(rep(1, N))
 K <- nrow(Z)
@@ -147,7 +147,7 @@ save(draws, file="../Data/mn_cereal_draws.RData")
 
 ###### RESULTS ######
 
-Check results: theta is completely informed by the prior, we can see based on the symmetric distribution. Also, when I turned off theta's prior, the traceplots did not converge anymore. 
+Check results: theta is completely informed by the prior, we can see based on the symmetric distribution. Also, when I turned off theta's prior, the traceplots did not converge. 
 
 theta1: price_diff = max(upc_price)-min(upc_price)
 theta2: num_upcs = upc_count/max(upc_count)

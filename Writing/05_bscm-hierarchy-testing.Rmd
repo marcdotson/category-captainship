@@ -28,7 +28,7 @@ Make synthetic data
 TT=105
 C=20                   #num control stores --> assuming all treated stores use same control store pool 
 K=3                   #num of store covariates in alpha equation plus a column of ones for intercept
-N=5                   #num of treated stores 
+N=10                   #num of treated stores 
 I=53       #week of intervention for each treated store
 
 #X is the sales for the control stores in all time periods

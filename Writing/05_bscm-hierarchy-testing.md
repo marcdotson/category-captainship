@@ -13,8 +13,8 @@ Make synthetic data
 ``` r
 TT=105
 C=20                   #num control stores --> assuming all treated stores use same control store pool 
-K=3                   #num of store covariates in alpha equation 
-N=15                   #num of treated stores 
+K=3                   #num of store covariates in alpha equation plus a column of ones for intercept
+N=10                   #num of treated stores 
 I=53       #week of intervention for each treated store
 
 #X is the sales for the control stores in all time periods
@@ -27,7 +27,9 @@ for(n in 1:N) {
   D[n,] <- c(zero, one)
 }
   
-Z <- matrix(rbinom(K*N, 1, .3), nrow=K, ncol=N)
+Z <- matrix(rbinom((K-1)*N, 1, .3), nrow=(K-1), ncol=N)
+#make a column of ones for Z for intercept
+Z <- Z %>% rbind(rep(1, N))
 
 #put in list for stan
 sim_values <- list(TT=TT, C=C, N=N, K=K, X=X, D=D, Z=Z)
@@ -57,7 +59,6 @@ synthetic data using stan to test our actual model
     ## generated quantities {
     ##   vector[N] alpha;          //treatment effect for each treated store
     ##   vector[K] theta;         //effect of store level covariates
-    ##   vector[N] theta_0;            //intercept for alpha equation 
     ##   matrix[N,C] beta;          //vector of weights for control stores for each treated store
     ##   matrix[N, TT] Y;            //Treated unit sales in every time period
     ##   real beta_0;              //intercept 
@@ -71,10 +72,8 @@ synthetic data using stan to test our actual model
     ##   sigma=inv_gamma_rng(2,1); 
     ##   nu = inv_gamma_rng(2,1);
     ##   beta_0 = cauchy_rng(0, 3);
-    ##   
     ##   for(n in 1:N) {
-    ##     theta_0[n] = normal_rng(0, 3);
-    ##     alpha[n]=normal_rng(theta_0[n] + theta'*Z[,n], nu);
+    ##     alpha[n]=normal_rng(theta'*Z[,n], nu);
     ##     for(c in 1:C) {
     ##       beta[n,c]=normal_rng(0,1);
     ##     }
@@ -93,8 +92,8 @@ synthetic data using stan to test our actual model
     ## Chain 1: Iteration: 1 / 1 [100%]  (Sampling)
     ## Chain 1: 
     ## Chain 1:  Elapsed Time: 0 seconds (Warm-up)
-    ## Chain 1:                0.000534 seconds (Sampling)
-    ## Chain 1:                0.000534 seconds (Total)
+    ## Chain 1:                0.000364 seconds (Sampling)
+    ## Chain 1:                0.000364 seconds (Total)
     ## Chain 1:
 
 ##### MODEL
@@ -108,11 +107,11 @@ is described by store/category characteristics making theta our effect
 of those characteristics on the average treatment effect alpha. Note:
 alpha is an average treatment effect across all post period weeks. Each
 treated store gets its own weights determined from the same sample of
-control stores. In this example, we have 15 treated stores and 20
-control stores. So each treated store gets its own synthetic control
-from the 20 control stores. This form of the model would allow us to
-still use horseshoe priors on beta, but those are not implemented here
-yet (horeshoe prior worked for simulation but not real data)
+control stores. In this example, we have N treated stores and 20 control
+stores. So each treated store gets its own synthetic control from the 20
+control stores. This form of the model would allow us to still use
+horseshoe priors on beta, but those are not implemented here yet
+(horeshoe prior worked for simulation but not real data)
 
     ## S4 class stanmodel 'bscm_hierarchy_testing' coded as follows:
     ## //
@@ -125,7 +124,7 @@ yet (horeshoe prior worked for simulation but not real data)
     ##   int TT; //Number of total time periods
     ##   int C; //Number of control stores
     ##   int N; //number of treated stores 
-    ##   int K; //number of treated store covariates
+    ##   int K; //number of treated store covariates plus a column of ones for intercept
     ##   matrix[N,TT] D; //treatment indicator for every time period for every treated store 
     ##   matrix[C, TT] X; //Control unit store observations in every time period
     ##   matrix[K, N] Z;  //treated store covariates 
@@ -141,7 +140,6 @@ yet (horeshoe prior worked for simulation but not real data)
     ##   //vector<lower=0>[C] lambda;  //local shrinkage 
     ##   vector[N] alpha;     //treatment effect 
     ##   vector[K] theta;      //hierarchical effect
-    ##   vector[N] theta_0;      //intercept for higher level alpha equation
     ##   matrix[N,C] beta;          //vector of weights for control stores for each treated store
     ##   real beta_0;        //intercept for Y equation
     ## }
@@ -163,10 +161,9 @@ yet (horeshoe prior worked for simulation but not real data)
     ##   //lambda ~ cauchy(0, tau); //horseshoe prior stuff 
     ##   //tau ~ cauchy(0, sigma); 
     ##   //sigma ~ cauchy(0, 3); 
-    ##   theta_0 ~ normal(0,2);
     ##   for (n in 1:N) {
     ##     beta[n,] ~ normal(0, 1);
-    ##     alpha[n] ~ normal(theta_0[n] + theta'*Z[,n], nu);
+    ##     alpha[n] ~ normal(theta'*Z[,n], nu);
     ##     for(t in 1:TT) {
     ##     Y[n,t] ~ normal(beta_0 + beta[n,]*X[,t] + alpha[n]*D[n,t], sigma); //likelihood
     ##     }}
@@ -205,30 +202,12 @@ yet (horeshoe prior worked for simulation but not real data)
     ## //   
     ## // }
 
-    ## Warning: There were 94 divergent transitions after warmup. See
-    ## http://mc-stan.org/misc/warnings.html#divergent-transitions-after-warmup
-    ## to find out why this is a problem and how to eliminate them.
-
-    ## Warning: Examine the pairs() plot to diagnose sampling problems
-
-    ## Warning: The largest R-hat is 1.06, indicating chains have not mixed.
-    ## Running the chains for more iterations may help. See
-    ## http://mc-stan.org/misc/warnings.html#r-hat
-
-    ## Warning: Bulk Effective Samples Size (ESS) is too low, indicating posterior means and medians may be unreliable.
-    ## Running the chains for more iterations may help. See
-    ## http://mc-stan.org/misc/warnings.html#bulk-ess
-
-    ## Warning: Tail Effective Samples Size (ESS) is too low, indicating posterior variances and tail quantiles may be unreliable.
-    ## Running the chains for more iterations may help. See
-    ## http://mc-stan.org/misc/warnings.html#tail-ess
-
 ###### RESULTS
 
 Check results: the traceplots look good, the sampler recovers the beta
 and theta parameters. The synthetic control matches the treatment group
 in the pre period.
-![](../Figures/bscm/hierarchy-recovery-1.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-2.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-3.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-4.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-5.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-6.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-7.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-8.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-9.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-10.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-11.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-12.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-13.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-14.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-15.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-16.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-17.png)<!-- -->
+![](../Figures/bscm/hierarchy-recovery-1.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-2.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-3.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-4.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-5.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-6.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-7.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-8.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-9.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-10.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-11.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-12.png)<!-- -->![](../Figures/bscm/hierarchy-recovery-13.png)<!-- -->
 
 Predicted Y (yhat) v Y: yhat is created in the generated quantities
 section of `bscm_hierarchy_testing.stan`  
@@ -236,7 +215,7 @@ section of `bscm_hierarchy_testing.stan`
 
 Synthetic control v Y: compare the synthetic control for selected
 treated stores to the actual sales (Y) for those treated stores
-![](../Figures/bscm/hierarchy-pre-treatment-1.png)<!-- -->![](../Figures/bscm/hierarchy-pre-treatment-2.png)<!-- -->![](../Figures/bscm/hierarchy-pre-treatment-3.png)<!-- -->![](../Figures/bscm/hierarchy-pre-treatment-4.png)<!-- -->![](../Figures/bscm/hierarchy-pre-treatment-5.png)<!-- -->
+![](../Figures/bscm/hierarchy-pre-treatment-1.png)<!-- -->![](../Figures/bscm/hierarchy-pre-treatment-2.png)<!-- -->![](../Figures/bscm/hierarchy-pre-treatment-3.png)<!-- -->![](../Figures/bscm/hierarchy-pre-treatment-4.png)<!-- -->
 
 Compare true alphas to estimated alphas:
 
@@ -255,7 +234,7 @@ store1_pre <- sc_data %>% filter(treat_store==1, week<(I[1]+1))
 mean(store1_pre$alpha)
 ```
 
-    ## [1] -0.08651374
+    ## [1] -0.04073531
 
 ``` r
 #this is the treatment effect (alpha) in store 1 in the POST period. we expect this to be equal to the true alpha 
@@ -263,14 +242,14 @@ store1_post <- sc_data %>% filter(treat_store==1, week>I[1])
 mean(store1_post$alpha)
 ```
 
-    ## [1] 2.236166
+    ## [1] 2.895154
 
 ``` r
 #compare to true alpha for store 1
 sim_alpha[1]
 ```
 
-    ## [1] 2.409909
+    ## [1] 2.661514
 
 Compare estimated average values for alpha to the true alpha in treated
 store 5
@@ -281,7 +260,7 @@ store5_pre <- sc_data %>% filter(treat_store==5, week<(I[1]+1))
 mean(store5_pre$alpha)
 ```
 
-    ## [1] -0.0240613
+    ## [1] 0.09186198
 
 ``` r
 #this is the treatment effect (alpha) in store 5 in the POST period. we expect this to be equal to the true alpha
@@ -289,11 +268,11 @@ store5_post <- sc_data %>% filter(treat_store==5, week>I[1])
 mean(store5_post$alpha)
 ```
 
-    ## [1] -6.757951
+    ## [1] 1.835441
 
 ``` r
 #compare to true alpha for store 5
 sim_alpha[5]
 ```
 
-    ## [1] -6.733947
+    ## [1] 1.856131
