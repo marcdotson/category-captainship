@@ -410,4 +410,118 @@ sc_data$total_sales <- log(sc_data$total_sales)
 
 sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=total_sales), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") + labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train) 
 ```
+Function to test control stores? 
+```{r}
+test_bscm_controls <- function(treat_store, control_sales) {
+  pl_treat <- control_sales %>% filter(store_code_uc==treat_store)
+  pl_control <- control_sales %>% filter(store_code_uc!=treat_store)
+  N_train <- 53
+  N_test <- nrow(weeks) - N_train
+  p <- length(unique(pl_control$store_code_uc))
+  #treated unit in the pre treatment
+  y_train  <- pl_treat %>% filter(week_num %in% c(1:N_train)) %>% pull(total_sales)  
+  y_train <- log(y_train)
+  X <- matrix(NA, nrow=nrow(weeks), ncol=p)
+  control_stores <- unique(pl_control$store_code_uc)
+  k=1
+  for(c in control_stores) {
+      X[,k] <- pl_control %>% filter(store_code_uc==c) %>% pull(total_sales)
+      k=k+1
+  }
+  #try log sales
+  X=log(X)
+  X_train <- X[1:N_train,]
+  X_test <- X[(N_train+1):nrow(weeks),]
+  b1_data <- list(p=p, N_test=N_test, N_train=N_train, y_train=y_train, X_train=X_train, X_test=X_test) #data   list for stan
+  b1_model <- stan_model(file="../Code/Model/bscm_b1_intercept_p2.stan")
+  #print(b1_model)
+  draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
+  y_fit <- summary(draws, pars="y_fit")
+  sc_pre <- tibble(y_fit[[1]][,1])
+  lower <- y_fit[[1]][,4]
+  upper <- y_fit[[1]][,8]
+  sc_pre <- sc_pre %>% bind_cols(lower, upper)
+  sc_pre <- sc_pre %>% mutate(week=rep(1:b1_data$N_train))
+  names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
+  #post sc
+  y_test <- summary(draws, pars="y_test")
+  sc_post <- tibble(y_test[[1]][,1])
+  lower <- y_test[[1]][,4]
+  upper <- y_test[[1]][,8]
+  sc_post <- sc_post %>% bind_cols(lower, upper)
+  sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
+  names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
+  sc_data <- sc_pre %>% bind_rows(sc_post)
+  y <- pl_treat %>% ungroup() %>% dplyr::select(-store_code_uc)
+  names(y)[1] <- "week"
+  sc_data <- sc_data %>% left_join(y, by="week")
+  sc_data$total_sales <- log(sc_data$total_sales)
+
+  print(sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=total_sales), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") + labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train)) 
+}
+```
+
+```{r}
+cstores <- unique(pl_control_sales$store_code_uc)
+cstores <- cstores[1:10]
+for(i in cstores) {
+  test_bscm_controls(i, pl_control_sales)
+}
+```
+
+```{r}
+test_bscm_treat <- function(treat_store, control_sales, treat_sales) {
+  pl_treat <- treat_sales %>% filter(store_num==treat_store)
+  pl_control <- control_sales #%>% filter(store_code_uc!=treat_store)
+  N_train <- 53
+  N_test <- nrow(weeks) - N_train
+  p <- length(unique(pl_control$store_code_uc))
+  #treated unit in the pre treatment
+  y_train  <- pl_treat %>% filter(week_num %in% c(1:N_train)) %>% pull(total_sales)  
+  y_train <- log(y_train)
+  X <- matrix(NA, nrow=nrow(weeks), ncol=p)
+  control_stores <- unique(pl_control$store_code_uc)
+  k=1
+  for(c in control_stores) {
+      X[,k] <- pl_control %>% filter(store_code_uc==c) %>% pull(total_sales)
+      k=k+1
+  }
+  #try log sales
+  X=log(X)
+  X_train <- X[1:N_train,]
+  X_test <- X[(N_train+1):nrow(weeks),]
+  b1_data <- list(p=p, N_test=N_test, N_train=N_train, y_train=y_train, X_train=X_train, X_test=X_test) #data   list for stan
+  b1_model <- stan_model(file="../Code/Model/bscm_b1_intercept_p2.stan")
+  #print(b1_model)
+  draws <- sampling(b1_model, data=b1_data, seed=2020, cores=3)
+  y_fit <- summary(draws, pars="y_fit")
+  sc_pre <- tibble(y_fit[[1]][,1])
+  lower <- y_fit[[1]][,4]
+  upper <- y_fit[[1]][,8]
+  sc_pre <- sc_pre %>% bind_cols(lower, upper)
+  sc_pre <- sc_pre %>% mutate(week=rep(1:b1_data$N_train))
+  names(sc_pre) <- c("synthetic_control","lower", "upper", "week")
+  #post sc
+  y_test <- summary(draws, pars="y_test")
+  sc_post <- tibble(y_test[[1]][,1])
+  lower <- y_test[[1]][,4]
+  upper <- y_test[[1]][,8]
+  sc_post <- sc_post %>% bind_cols(lower, upper)
+  sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test)))
+  names(sc_post) <- c("synthetic_control", "lower", "upper", "week")
+  sc_data <- sc_pre %>% bind_rows(sc_post)
+  y <- pl_treat %>% ungroup() %>% dplyr::select(-store_num)
+  names(y)[1] <- "week"
+  sc_data <- sc_data %>% left_join(y, by="week")
+  sc_data$total_sales <- log(sc_data$total_sales)
+
+  print(sc_data %>% ggplot(aes(x=week)) + geom_ribbon(aes(ymin=lower, ymax=upper), fill="gray80") + geom_line(aes(y=total_sales), color="darkred") + geom_line(aes(y=synthetic_control), color="steelblue") + labs(x="Week", y="Value") + ggtitle("Synthetic Control (blue) vs Treatment Group (red)") + geom_vline(xintercept=b1_data$N_train)) 
+}
+```
+
+```{r}
+for(i in 1:10) {
+  test_bscm_treat(i, pl_control_sales, pl_treat_sales)
+}
+```
 

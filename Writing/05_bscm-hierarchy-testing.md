@@ -31,8 +31,12 @@ Z <- matrix(rbinom((K-1)*N, 1, .3), nrow=(K-1), ncol=N)
 #make a column of ones for Z for intercept
 Z <- Z %>% rbind(rep(1, N))
 
+#just intercept model
+Z <- rep(1, N)
+K=1
+
 #put in list for stan
-sim_values <- list(TT=TT, C=C, N=N, K=K, X=X, D=D, Z=Z)
+sim_values <- list(TT=TT, C=C, N=N, K=K, X=X, D=D, Z=t(as.matrix(Z)))
 ```
 
 Generate data in stan: the first stan model printed here is to generate
@@ -92,8 +96,8 @@ synthetic data using stan to test our actual model
     ## Chain 1: Iteration: 1 / 1 [100%]  (Sampling)
     ## Chain 1: 
     ## Chain 1:  Elapsed Time: 0 seconds (Warm-up)
-    ## Chain 1:                0.000364 seconds (Sampling)
-    ## Chain 1:                0.000364 seconds (Total)
+    ## Chain 1:                0.000347 seconds (Sampling)
+    ## Chain 1:                0.000347 seconds (Total)
     ## Chain 1:
 
 ##### MODEL
@@ -234,7 +238,7 @@ store1_pre <- sc_data %>% filter(treat_store==1, week<(I[1]+1))
 mean(store1_pre$alpha)
 ```
 
-    ## [1] -0.04073531
+    ## [1] 0.06703601
 
 ``` r
 #this is the treatment effect (alpha) in store 1 in the POST period. we expect this to be equal to the true alpha 
@@ -242,14 +246,14 @@ store1_post <- sc_data %>% filter(treat_store==1, week>I[1])
 mean(store1_post$alpha)
 ```
 
-    ## [1] 2.895154
+    ## [1] 1.213214
 
 ``` r
 #compare to true alpha for store 1
 sim_alpha[1]
 ```
 
-    ## [1] 2.661514
+    ## [1] 0.8985109
 
 Compare estimated average values for alpha to the true alpha in treated
 store 5
@@ -260,7 +264,7 @@ store5_pre <- sc_data %>% filter(treat_store==5, week<(I[1]+1))
 mean(store5_pre$alpha)
 ```
 
-    ## [1] 0.09186198
+    ## [1] 0.08826318
 
 ``` r
 #this is the treatment effect (alpha) in store 5 in the POST period. we expect this to be equal to the true alpha
@@ -268,11 +272,11 @@ store5_post <- sc_data %>% filter(treat_store==5, week>I[1])
 mean(store5_post$alpha)
 ```
 
-    ## [1] 1.835441
+    ## [1] 3.235479
 
 ``` r
 #compare to true alpha for store 5
 sim_alpha[5]
 ```
 
-    ## [1] 1.856131
+    ## [1] 3.122204

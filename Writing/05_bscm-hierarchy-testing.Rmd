@@ -45,8 +45,12 @@ Z <- matrix(rbinom((K-1)*N, 1, .3), nrow=(K-1), ncol=N)
 #make a column of ones for Z for intercept
 Z <- Z %>% rbind(rep(1, N))
 
+#just intercept model
+Z <- rep(1, N)
+K=1
+
 #put in list for stan
-sim_values <- list(TT=TT, C=C, N=N, K=K, X=X, D=D, Z=Z)
+sim_values <- list(TT=TT, C=C, N=N, K=K, X=X, D=D, Z=t(as.matrix(Z)))
 ```
 
 Generate data in stan: the first stan model printed here is to generate synthetic data using stan to test our actual model 
@@ -74,7 +78,7 @@ sim_epsilon <- extract(sim_data)$epsilon #variance in Y equation
 sim_alpha <- extract(sim_data)$alpha  #treatment effect
 
 #put data in list for stan model 
-b1_data <- list(TT=TT, C=C, N=N, X=X, K=K, Z=Z, D=D, Y=sim_Y[1,,], beta_0=sim_beta0, beta=sim_beta[1,,], epsilon=sim_epsilon, alpha=sim_alpha, sigma=sim_sigma, theta=sim_theta)
+b1_data <- list(TT=TT, C=C, N=N, X=X, K=K, Z=t(as.matrix(Z)), D=D, Y=sim_Y[1,,], beta_0=sim_beta0, beta=sim_beta[1,,], epsilon=sim_epsilon, alpha=sim_alpha, sigma=sim_sigma, theta=sim_theta)
 ```
 
 ##### MODEL #####
