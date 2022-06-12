@@ -2,7 +2,7 @@
 title: "Ice Cream Cleaning"
 author: "Cameron Bale"
 date: "9/18/2019"
-output: html_document
+output: github_document
 ---
 
 Note: This document contains all the code used to merge and clean data for the ice_cream category. 
@@ -22,32 +22,34 @@ library(readxl)
 
 Unzip file, then read in files for 2011 using a for loop which reads in a file if it is a 2011 movement file and binds each of the separate files into one. Read in the products master file and the 2011 stores and rms files.
 ```{r}
-ice_cream_files <- untar('ice_cream.tgz', list = TRUE)
-
-untar('ice_cream.tgz')
-
-move_11 <- tibble()
-
-for (i in seq_along(ice_cream_files)) {
-  
-  if (substr(ice_cream_files[i], 22, 40) == "2011/Movement_Files") {
-    
-    temp_move_11 <- read_tsv(ice_cream_files[i])
-    
-      move_11 <- move_11 %>%
-      
-        bind_rows(temp_move_11)
-      
-      rm(temp_move_11)
-  }
-  
-}
+# ice_cream_files <- untar('ice_cream.tgz', list = TRUE)
+# 
+# untar('ice_cream.tgz')
+# 
+# move_11 <- tibble()
+# 
+# for (i in seq_along(ice_cream_files)) {
+#   
+#   if (substr(ice_cream_files[i], 22, 40) == "2011/Movement_Files") {
+#     
+#     temp_move_11 <- read_tsv(ice_cream_files[i])
+#     
+#       move_11 <- move_11 %>%
+#       
+#         bind_rows(temp_move_11)
+#       
+#       rm(temp_move_11)
+#   }
+#   
+# }
 
 products <- read_tsv("nielsen_extracts/RMS/Master_Files/Latest/products.tsv", quote = "")
 
 stores_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/stores_2011.tsv")
 
 rms_11 <- read_tsv("nielsen_extracts/RMS/2011/Annual_Files/rms_versions_2011.tsv")
+
+move_11 <- read_tsv("nielsen_extracts/RMS/2011/Movement_Files/2005_2011/2672_2011.tsv")
 
 full_11 <- move_11 %>%
   left_join(stores_11, by ="store_code_uc") %>%
@@ -60,25 +62,27 @@ rm(move_11, stores_11, rms_11)
 
 Repeat for 2012.
 ```{r}
-move_12 <- tibble()
-
-for (i in seq_along(ice_cream_files)) {
-  
-  if (substr(ice_cream_files[i], 22, 40) == "2012/Movement_Files") {
-    
-    temp_move_12 <- read_tsv(ice_cream_files[i])
-    
-      move_12 <- move_12 %>%
-      
-        bind_rows(temp_move_12)
-      
-      rm(temp_move_12)
-  }
-}
+# move_12 <- tibble()
+# 
+# for (i in seq_along(ice_cream_files)) {
+#   
+#   if (substr(ice_cream_files[i], 22, 40) == "2012/Movement_Files") {
+#     
+#     temp_move_12 <- read_tsv(ice_cream_files[i])
+#     
+#       move_12 <- move_12 %>%
+#       
+#         bind_rows(temp_move_12)
+#       
+#       rm(temp_move_12)
+#   }
+# }
 
 stores_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/stores_2012.tsv")
 
 rms_12 <- read_tsv("nielsen_extracts/RMS/2012/Annual_Files/rms_versions_2012.tsv")
+
+move_12 <- read_tsv("nielsen_extracts/RMS/2012/Movement_Files/2005_2012/2672_2012.tsv")
 
 full_12 <- move_12 %>%
   left_join(stores_12, by ="store_code_uc") %>% 
@@ -91,25 +95,27 @@ rm(move_12, stores_12, rms_12)
 
 Repeat for 2013.
 ```{r}
-move_13 <- tibble()
-
-for (i in seq_along(ice_cream_files)) {
-  
-  if (substr(ice_cream_files[i], 22, 40) == "2013/Movement_Files") {
-    
-    temp_move_13 <- read_tsv(ice_cream_files[i])
-    
-      move_13 <- move_13 %>%
-      
-        bind_rows(temp_move_13)
-      
-      rm(temp_move_13)
-  }
-}
+# move_13 <- tibble()
+# 
+# for (i in seq_along(ice_cream_files)) {
+#   
+#   if (substr(ice_cream_files[i], 22, 40) == "2013/Movement_Files") {
+#     
+#     temp_move_13 <- read_tsv(ice_cream_files[i])
+#     
+#       move_13 <- move_13 %>%
+#       
+#         bind_rows(temp_move_13)
+#       
+#       rm(temp_move_13)
+#   }
+# }
 
 stores_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/stores_2013.tsv", guess_max = 20000)
 
 rms_13 <- read_tsv("nielsen_extracts/RMS/2013/Annual_Files/rms_versions_2013.tsv")
+
+move_13 <- read_tsv("nielsen_extracts/RMS/2013/Movement_Files/2005_2013/2672_2013.tsv")
 
 full_13 <- move_13 %>%
   left_join(stores_13, by ="store_code_uc") %>% 
@@ -124,7 +130,7 @@ Read in file containing the manufacturer upc prefixes. The captain and validator
 respectively. Create separate vectors with the upc prefixes for both Unilever and Nestle called `uni_prefs` and
 `nestle_prefs`.
 ```{r}
-prefixes <- read_xlsx('Manufacturer UPC Prefixes - From GS1 Company Database.xlsx')
+prefixes <- read_csv('Manufacturer UPC Prefixes - From GS1 Company Database - Sheet1.csv')
 
 uni_prefs <- prefixes %>%
   filter(manufacturer == 'Unilever') %>%
