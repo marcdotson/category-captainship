@@ -2,8 +2,10 @@
 // Testing a version of SDiD 
 
 data {
-  int<lower=0> N; //num individuals
+  int<lower=0> N; //num stores
   int<lower=0> TT; //num time periods 
+  vector[N] treat; //which stores are treated
+  vector[TT] post; //which time periods are post 
   matrix[N,TT] Y; //control and treatment unit sales over time 
   matrix[N,TT] D; //treatment indicator 
 }
@@ -12,8 +14,9 @@ data {
 parameters {
   real<lower=0> sigma; //standard deviation of Y?
   real tau; //treatment effect 
-  vector[N] alpha; //individual fe
-  vector[TT] gamma; //time fe 
+  real mu; //treatment effect 
+  real alpha; //individual fe
+  real gamma; //time fe 
 }
 
 // there needs to be a model for the weights and the DiD
@@ -26,7 +29,7 @@ model {
   //DiD equation 
   for(n in 1:N) {
     for(t in 1:TT) {
-    Y[n, t] ~ normal(alpha[n] + gamma[t] + D[n,t]*tau, sigma);
+    Y[n, t] ~ normal(mu + alpha*treat[n] + gamma*post[t] + tau*D[n,t], sigma);
     }
   }
 }

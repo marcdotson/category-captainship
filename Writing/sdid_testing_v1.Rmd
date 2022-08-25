@@ -7,7 +7,7 @@ output:
     toc: true 
 ---
 
-```{r opts, echo=FALSE}
+```{r opts, echo=FALSE, include=FALSE}
 library(tidyverse)
 library(rstan)
 library(bayesplot)
@@ -29,11 +29,17 @@ TT <- 100 # pre period ends at t=50
 I <- 50 #intervention time 
 
 #create parameters 
-alpha <- rnorm(N)
-gamma_pre <- rnorm(TT/2, mean=1, sd=4)
-gamma_post <- rnorm(TT/2, mean=2, sd=4)
-gamma <- c(gamma_pre, gamma_post)
+alpha <- 1
+gamma <- .8
+mu <- 3
 tau <- 2
+#gamma_pre <- rnorm(TT/2, mean=1, sd=4)
+#gamma_post <- rnorm(TT/2, mean=2, sd=4)
+#gamma <- c(gamma_pre, gamma_post)
+
+#create treat and post
+treat <- rep(0:1, each=C)
+post <- rep(0:1, each=I)
 
 #create indicator D
 D <- matrix(NA, nrow=N, ncol=TT) 
@@ -45,11 +51,14 @@ for(n in 1:N) {
   }
 }
 
+#make error 
+epsilon <- matrix(rnorm(N*TT), nrow=N, ncol=TT)
+
 #make Y 
 Y <- matrix(NA, nrow=N, ncol=TT) 
 for(n in 1:N) {
   for(t in 1:TT) {
-    Y[n,t] = alpha[n] + gamma[t] + D[n,t]*tau
+    Y[n,t] = mu + alpha*treat[n] + gamma*post[t] + tau*D[n,t] + epsilon[n,t]
   }
 }
 
@@ -57,7 +66,7 @@ for(n in 1:N) {
 as_tibble(t(Y)) %>% gather(key="store", value="Y") %>% mutate(week=rep(1:TT, times=N)) %>% ggplot(aes(x=week, y=Y, col=as.factor(store))) + geom_line() + geom_vline(xintercept=I)
 
 #put in list for stan
-d <- list(N=N, TT=TT, I=I, C=C, D=D, Y=Y, alpha=alpha, gamma=gamma, tau=tau)
+d <- list(N=N, TT=TT, I=I, C=C, D=D, Y=Y, alpha=alpha, gamma=gamma, tau=tau, treat=treat, post=post, mu=mu, epsilon=epsilon)
 ```
 
 # Model
@@ -74,22 +83,22 @@ draws <- sampling(model, data=d, seed=2020)
 ## Traceplots
 
 ```{r}
+traceplot(draws, pars="lp__")
 traceplot(draws, pars="alpha")
 traceplot(draws, pars="tau")
 traceplot(draws, pars="sigma")
-traceplot(draws, pars="gamma[1]")
+traceplot(draws, pars="gamma")
+traceplot(draws, pars="mu")
 ```
 
 ## Histograms 
 
 ```{r}
 mcmc_recover_hist(As.mcmc.list(draws, pars="tau"), true=d$tau)
-mcmc_recover_hist(As.mcmc.list(draws, pars="alpha"), true=as.vector(d$alpha))
+mcmc_recover_hist(As.mcmc.list(draws, pars="alpha"), true=d$alpha)
+mcmc_recover_hist(As.mcmc.list(draws, pars="gamma"), true=d$gamma)
+mcmc_recover_hist(As.mcmc.list(draws, pars="mu"), true=d$mu)
 ```
 
-## Sales plots 
 
-```{r}
-
-```
 
