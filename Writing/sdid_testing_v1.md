@@ -23,10 +23,9 @@ I <- 50 #intervention time
 alpha <- 1
 gamma <- .8
 mu <- 3
-tau <- 2
-#gamma_pre <- rnorm(TT/2, mean=1, sd=4)
-#gamma_post <- rnorm(TT/2, mean=2, sd=4)
-#gamma <- c(gamma_pre, gamma_post)
+tau_cont <- rep(0, times=C)
+tau_treat <- rnorm(N-C, mean=3, sd=.5)
+tau <- c(tau_cont, tau_treat)
 
 #create treat and post
 treat <- rep(0:1, each=C)
@@ -49,7 +48,7 @@ epsilon <- matrix(rnorm(N*TT), nrow=N, ncol=TT)
 Y <- matrix(NA, nrow=N, ncol=TT) 
 for(n in 1:N) {
   for(t in 1:TT) {
-    Y[n,t] = mu + alpha*treat[n] + gamma*post[t] + tau*D[n,t] + epsilon[n,t]
+    Y[n,t] = mu + alpha*treat[n] + gamma*post[t] + tau[n]*D[n,t] + epsilon[n,t]
   }
 }
 
@@ -73,6 +72,35 @@ d <- list(N=N, TT=TT, I=I, C=C, D=D, Y=Y, alpha=alpha, gamma=gamma, tau=tau, tre
 
 ``` r
 model <- stan_model(file="../Code/Model/sdid_v1.stan")
+```
+
+    ## recompiling to avoid crashing R session
+
+    ## Trying to compile a simple C file
+
+    ## Running /Library/Frameworks/R.framework/Resources/bin/R CMD SHLIB foo.c
+    ## clang -mmacosx-version-min=10.13 -I"/Library/Frameworks/R.framework/Resources/include" -DNDEBUG   -I"/Library/Frameworks/R.framework/Versions/4.1/Resources/library/Rcpp/include/"  -I"/Library/Frameworks/R.framework/Versions/4.1/Resources/library/RcppEigen/include/"  -I"/Library/Frameworks/R.framework/Versions/4.1/Resources/library/RcppEigen/include/unsupported"  -I"/Library/Frameworks/R.framework/Versions/4.1/Resources/library/BH/include" -I"/Library/Frameworks/R.framework/Versions/4.1/Resources/library/StanHeaders/include/src/"  -I"/Library/Frameworks/R.framework/Versions/4.1/Resources/library/StanHeaders/include/"  -I"/Library/Frameworks/R.framework/Versions/4.1/Resources/library/RcppParallel/include/"  -I"/Library/Frameworks/R.framework/Versions/4.1/Resources/library/rstan/include" -DEIGEN_NO_DEBUG  -DBOOST_DISABLE_ASSERTS  -DBOOST_PENDING_INTEGER_LOG2_HPP  -DSTAN_THREADS  -DBOOST_NO_AUTO_PTR  -include '/Library/Frameworks/R.framework/Versions/4.1/Resources/library/StanHeaders/include/stan/math/prim/mat/fun/Eigen.hpp'  -D_REENTRANT -DRCPP_PARALLEL_USE_TBB=1   -I/usr/local/include   -fPIC  -Wall -g -O2  -c foo.c -o foo.o
+    ## In file included from <built-in>:1:
+    ## In file included from /Library/Frameworks/R.framework/Versions/4.1/Resources/library/StanHeaders/include/stan/math/prim/mat/fun/Eigen.hpp:13:
+    ## In file included from /Library/Frameworks/R.framework/Versions/4.1/Resources/library/RcppEigen/include/Eigen/Dense:1:
+    ## In file included from /Library/Frameworks/R.framework/Versions/4.1/Resources/library/RcppEigen/include/Eigen/Core:88:
+    ## /Library/Frameworks/R.framework/Versions/4.1/Resources/library/RcppEigen/include/Eigen/src/Core/util/Macros.h:628:1: error: unknown type name 'namespace'
+    ## namespace Eigen {
+    ## ^
+    ## /Library/Frameworks/R.framework/Versions/4.1/Resources/library/RcppEigen/include/Eigen/src/Core/util/Macros.h:628:16: error: expected ';' after top level declarator
+    ## namespace Eigen {
+    ##                ^
+    ##                ;
+    ## In file included from <built-in>:1:
+    ## In file included from /Library/Frameworks/R.framework/Versions/4.1/Resources/library/StanHeaders/include/stan/math/prim/mat/fun/Eigen.hpp:13:
+    ## In file included from /Library/Frameworks/R.framework/Versions/4.1/Resources/library/RcppEigen/include/Eigen/Dense:1:
+    ## /Library/Frameworks/R.framework/Versions/4.1/Resources/library/RcppEigen/include/Eigen/Core:96:10: fatal error: 'complex' file not found
+    ## #include <complex>
+    ##          ^~~~~~~~~
+    ## 3 errors generated.
+    ## make: *** [foo.o] Error 1
+
+``` r
 print(model)
 ```
 
@@ -92,10 +120,10 @@ print(model)
     ## 
     ## parameters {
     ##   real<lower=0> sigma; //standard deviation of Y?
-    ##   real tau; //treatment effect 
     ##   real mu; //treatment effect 
     ##   real alpha; //individual fe
     ##   real gamma; //time fe 
+    ##   vector[N] tau; //treatment effect
     ## }
     ## 
     ## // there needs to be a model for the weights and the DiD
@@ -108,7 +136,7 @@ print(model)
     ##   //DiD equation 
     ##   for(n in 1:N) {
     ##     for(t in 1:TT) {
-    ##     Y[n, t] ~ normal(mu + alpha*treat[n] + gamma*post[t] + tau*D[n,t], sigma);
+    ##     Y[n, t] ~ normal(mu + alpha*treat[n] + gamma*post[t] + tau[n]*D[n,t], sigma);
     ##     }
     ##   }
     ## }

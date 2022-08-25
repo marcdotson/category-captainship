@@ -1,11 +1,13 @@
 ---
-title: "Testing Synthetic DiD Version 1"
+title: "Testing Synthetic DiD Version 2"
 author: "Morgan Bale"
 date: "8/24/2022"
 output: 
   github_document:
     toc: true 
 ---
+
+Version 2 adds weights to the simple DiD regression from version 1. 
 
 ```{r opts, echo=FALSE, include=FALSE}
 library(tidyverse)
@@ -98,6 +100,3 @@ mcmc_recover_hist(As.mcmc.list(draws, pars="alpha"), true=d$alpha)
 mcmc_recover_hist(As.mcmc.list(draws, pars="gamma"), true=d$gamma)
 mcmc_recover_hist(As.mcmc.list(draws, pars="mu"), true=d$mu)
 ```
-
-
-
