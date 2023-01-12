@@ -1,0 +1,41 @@
+---
+title: "BSCM-levels stage 2 analysis"
+author: "Morgan Bale"
+date: "2023-01-11"
+output: github_document
+---
+
+Load libraries and data. 
+```{r}
+library(tidyverse)
+load("sc_post.RData")
+load("b1_data.RData")
+```
+
+Create alpha = Y_post - Y_test where Y_test is the predicted synthetic control in the post treatment. Generate data for Z, theta_0, and theta. 
+```{r}
+set.seed(2020)
+sc_post <- sc_post %>% mutate(treat_effect=treated-synthetic_control)
+
+B = b1_data$B
+W = b1_data$N_test
+K = 3
+N = W*B
+Z <- matrix(rnorm(K*N), nrow=K, ncol=N)
+
+stage2_data <- list(B=B, W=W, K=K, N=N, Z=Z, treat_effect=sc_post$treat_effect)
+```
+
+Run stage2 model: treat_effect ~ theta_0 + theta*Z
+```{r}
+stage2_model <- stan_model(file = here::here("Code", "Model", "bscm_level1_p1_stage2.stan"))
+print(stage2_model)
+
+draws <- sampling(stage2_model, data=stage2_data, seed=2020)
+```
+
+```{r}
+traceplot(draws)
+print(draws)
+```
+
