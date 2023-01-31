@@ -151,6 +151,8 @@ b1_model_p1 <- stan_model(file = here::here("Code", "Model", "bscm_level2_p1.sta
 print(b1_model_p1)
 
 draws1 <- sampling(b1_model_p1, data=b1_data, seed=2020)
+
+save(draws1, file="03_cereal_stage1_draws.RData")
 ```
 
 # Stage 1 Results
