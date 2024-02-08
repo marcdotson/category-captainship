@@ -7,7 +7,7 @@
 data{
   int N_train; //Number of observations in the pre-treatment periods
   int N_test; //Number of observations in the post-treatment periods
-  int S;      //Number of stores
+  int S;      //Number of control stores
   int B;      //Number of brands 
   matrix[N_train, B] y_train;        //Treated unit in the pre-treatment periods
   matrix[N_train, S] X_train[B];    //Control unit matrix in the pre-treatment

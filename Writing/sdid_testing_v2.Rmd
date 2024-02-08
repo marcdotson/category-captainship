@@ -1,0 +1,112 @@
+---
+title: "Testing Synthetic DiD Version 2"
+author: "Morgan Bale"
+date: "8/24/2022"
+output: 
+  github_document:
+    toc: true 
+---
+
+Version 2 adds weights to the simple DiD regression from version 1. 
+
+```{r opts, echo=FALSE, include=FALSE}
+library(tidyverse)
+library(rstan)
+library(bayesplot)
+library(gtools)
+
+rstan_options(auto_write=TRUE)
+options(mc.cores=parallel::detectCores()-1)
+
+knitr::opts_chunk$set(fig.path="../Figures/bscm/")
+```
+
+# Data 
+
+Create synthetic data to test model. 
+```{r}
+N <- 20 #total num stores
+C <- N-1 #num control stores 
+TT <- 100 # pre period ends at t=50 
+I <- 50 #intervention time 
+
+#create treat and post
+treat_con <- rep(0, each=C)
+treat <- c(treat_con, 1)
+post <- rep(0:1, each=I)
+
+#create indicator D
+D <- matrix(NA, nrow=N, ncol=TT) 
+
+for(n in 1:N) {
+  for(t in 1:TT) {
+    if(n > C & t > I) {D[n,t]=1}
+    else {D[n,t]=0}
+  }
+}
+
+Y_con_pre <- matrix(rnorm(C*I), nrow=C, ncol=I)
+
+#put in list for stan
+sim_values <- list(N=N, TT=TT, I=I, C=C, D=D, treat=treat, post=post, Y_con_pre=Y_con_pre)
+
+#gen data from stan file 
+data_gen <- stan_model(file="../Code/Model/gen_sdid_v2.stan")
+#print(data_gen)
+sim_data <- stan(
+  #file = here::here("Code", "Model", "gen_hierarchy_data_test.stan"),
+  file="../Code/Model/gen_sdid_v2.stan",
+  data = sim_values,
+  iter = 1,
+  chains = 1,
+  seed = 2022,
+  algorithm = "Fixed_param"
+)
+
+#extract values
+sim_Y_tp <- extract(sim_data)$Y_treat_pre
+sim_Y <- extract(sim_data)$Y
+sim_sigma <- extract(sim_data)$sigma
+sim_mu <- extract(sim_data)$mu
+sim_alpha <- extract(sim_data)$alpha
+sim_gamma <- extract(sim_data)$gamma
+sim_eta <- extract(sim_data)$eta
+sim_nu <- extract(sim_data)$nu
+sim_tau <- extract(sim_data)$tau
+sim_w <- extract(sim_data)$w
+sim_omega <- extract(sim_data)$omega
+
+#put all in list for stan
+d <- list(N=N, TT=TT, I=I, C=C, D=D, treat=treat, post=post, Y_con_pre=Y_con_pre, Y=sim_Y, Y_treat_pre=sim_Y_tp)
+```
+
+# Model
+
+```{r}
+model <- stan_model(file="../Code/Model/sdid_v1.stan")
+print(model)
+
+draws <- sampling(model, data=d, seed=2020)
+```
+
+# Results 
+
+## Traceplots
+
+```{r}
+traceplot(draws, pars="lp__")
+traceplot(draws, pars="alpha")
+traceplot(draws, pars="tau")
+traceplot(draws, pars="sigma")
+traceplot(draws, pars="gamma")
+traceplot(draws, pars="mu")
+```
+
+## Histograms 
+
+```{r}
+mcmc_recover_hist(As.mcmc.list(draws, pars="tau"), true=d$tau)
+mcmc_recover_hist(As.mcmc.list(draws, pars="alpha"), true=d$alpha)
+mcmc_recover_hist(As.mcmc.list(draws, pars="gamma"), true=d$gamma)
+mcmc_recover_hist(As.mcmc.list(draws, pars="mu"), true=d$mu)
+```

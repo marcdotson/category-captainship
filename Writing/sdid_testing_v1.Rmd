@@ -1,0 +1,103 @@
+---
+title: "Testing Synthetic DiD Version 1"
+author: "Morgan Bale"
+date: "8/24/2022"
+output: 
+  github_document:
+    toc: true 
+---
+
+```{r opts, echo=FALSE, include=FALSE}
+library(tidyverse)
+library(rstan)
+library(bayesplot)
+library(gtools)
+
+rstan_options(auto_write=TRUE)
+options(mc.cores=parallel::detectCores()-1)
+
+knitr::opts_chunk$set(fig.path="../Figures/bscm/")
+```
+
+# Data 
+
+Create synthetic data to test model. 
+```{r}
+N <- 20 #total num stores
+C <- 10 #num control stores 
+TT <- 100 # pre period ends at t=50 
+I <- 50 #intervention time 
+
+#create parameters 
+alpha <- 1
+gamma <- .8
+mu <- 3
+tau_cont <- rep(0, times=C)
+tau_treat <- rnorm(N-C, mean=3, sd=.5)
+tau <- c(tau_cont, tau_treat)
+
+#create treat and post
+treat <- rep(0:1, each=C)
+post <- rep(0:1, each=I)
+
+#create indicator D
+D <- matrix(NA, nrow=N, ncol=TT) 
+
+for(n in 1:N) {
+  for(t in 1:TT) {
+    if(n > C & t > I) {D[n,t]=1}
+    else {D[n,t]=0}
+  }
+}
+
+#make error 
+epsilon <- matrix(rnorm(N*TT), nrow=N, ncol=TT)
+
+#make Y 
+Y <- matrix(NA, nrow=N, ncol=TT) 
+for(n in 1:N) {
+  for(t in 1:TT) {
+    Y[n,t] = mu + alpha*treat[n] + gamma*post[t] + tau[n]*D[n,t] + epsilon[n,t]
+  }
+}
+
+#check Y plot
+as_tibble(t(Y)) %>% gather(key="store", value="Y") %>% mutate(week=rep(1:TT, times=N)) %>% ggplot(aes(x=week, y=Y, col=as.factor(store))) + geom_line() + geom_vline(xintercept=I)
+
+#put in list for stan
+d <- list(N=N, TT=TT, I=I, C=C, D=D, Y=Y, alpha=alpha, gamma=gamma, tau=tau, treat=treat, post=post, mu=mu, epsilon=epsilon)
+```
+
+# Model
+
+```{r}
+model <- stan_model(file="../Code/Model/sdid_v1.stan")
+print(model)
+
+draws <- sampling(model, data=d, seed=2020)
+```
+
+# Results 
+
+## Traceplots
+
+```{r}
+traceplot(draws, pars="lp__")
+traceplot(draws, pars="alpha")
+traceplot(draws, pars="tau")
+traceplot(draws, pars="sigma")
+traceplot(draws, pars="gamma")
+traceplot(draws, pars="mu")
+```
+
+## Histograms 
+
+```{r}
+mcmc_recover_hist(As.mcmc.list(draws, pars="tau"), true=d$tau)
+mcmc_recover_hist(As.mcmc.list(draws, pars="alpha"), true=d$alpha)
+mcmc_recover_hist(As.mcmc.list(draws, pars="gamma"), true=d$gamma)
+mcmc_recover_hist(As.mcmc.list(draws, pars="mu"), true=d$mu)
+```
+
+
+

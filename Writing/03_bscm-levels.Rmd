@@ -14,7 +14,7 @@ library(gtools)
 library(reshape2)
 
 rstan_options(auto_write=TRUE) # writes a compiled Stan program to the disk to avoid recompiling
-options(mc.cores = parallel::detectCores()-1) # uses multiple cores for stan
+options(mc.cores = parallel::detectCores()) # uses multiple cores for stan
 
 knitr::opts_chunk$set(
   fig.path = "../Figures/bscm/"
@@ -69,6 +69,8 @@ Create synthetic data
 ```{r}
 set.seed(2020)
 b1_data <- gen_b1_data()
+
+save(b1_data, file="b1_data.RData")
 ```
 
 ###### MODEL: CENTERED PARAMETERIZATION ########
@@ -79,7 +81,7 @@ Run model using `bscm_level1_p1.stan`.
 b1_model_p1 <- stan_model(file = here::here("Code", "Model", "bscm_level1_p1.stan"))
 print(b1_model_p1)
 
-draws <- sampling(b1_model_p1, data=b1_data, seed=2020, cores=3)
+draws <- sampling(b1_model_p1, data=b1_data, seed=2020)
 ```
 
 ###### RESULTS: CENTERED PARAMETERIZATION ######
@@ -146,6 +148,8 @@ sc_post <- sc_post %>% bind_cols(lower, upper)
 sc_post <- sc_post %>% mutate(week=rep((b1_data$N_train+1):(b1_data$N_train+b1_data$N_test), each=b1_data$B), brand=rep(1:b1_data$B, times=b1_data$N_test))
 
 names(sc_post) <- c("synthetic_control", "lower", "upper", "week", "brand")
+
+save(sc_post, file="sc_post.RData")
 ```
 
 Make treatment data for post period
